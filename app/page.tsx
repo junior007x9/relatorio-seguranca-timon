@@ -8,7 +8,7 @@ import {
 } from 'docx';
 import { saveAs } from 'file-saver';
 
-// --- CORREÇÃO DO ERRO VERCEL AQUI ---
+// --- CORREÇÃO DO ERRO VERCEL ---
 // @ts-ignore
 import pdfMake from "pdfmake/build/pdfmake";
 // @ts-ignore
@@ -27,7 +27,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // --- DEFINA O E-MAIL DO ADMINISTRADOR AQUI ---
 const ADMIN_EMAIL = 'admin@csiprc.com'; 
-const SENHA_EXCLUSAO = '1234'; // Senha extra para confirmar exclusão
+const SENHA_EXCLUSAO = '1234'; 
 
 // --- TIPAGEM ---
 type AlojamentoDados = { qtd: string; nomes: string; };
@@ -40,23 +40,19 @@ type RelatorioData = {
 };
 
 export default function Home() {
-  // --- ESTADOS DE AUTENTICAÇÃO ---
   const [session, setSession] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   
-  // --- ESTADOS DO SISTEMA ---
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<'form' | 'history' | 'admin'>('form');
   const [historico, setHistorico] = useState<RelatorioData[]>([]);
   const [selectedReport, setSelectedReport] = useState<RelatorioData | null>(null);
   
-  // Admin cadastro
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
 
-  // Formulário Atual
   const [formData, setFormData] = useState<RelatorioData>({
     data: new Date().toLocaleDateString('pt-BR'),
     supervisor: '', educadores: '', apoio: '', plantao: '',
@@ -69,7 +65,6 @@ export default function Home() {
     resumoPlantao: '', assinaturaDiurno: '', assinaturaNoturno: ''
   });
 
-  // --- EFEITO: VERIFICAR SESSÃO ---
   useEffect(() => {
     const checkSession = async () => {
         const { data } = await supabase.auth.getSession();
@@ -81,7 +76,6 @@ export default function Home() {
     return () => { authListener.subscription.unsubscribe(); };
   }, []);
 
-  // --- FUNÇÕES DE LOGIN/LOGOUT ---
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
@@ -98,7 +92,6 @@ export default function Home() {
     if (error) alert("Erro: " + error.message); else { alert("Usuário criado!"); setNewUserEmail(''); setNewUserPassword(''); }
   };
 
-  // --- HANDLERS DO FORMULÁRIO ---
   const handleChange = (e: any) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -107,7 +100,6 @@ export default function Home() {
     setFormData(prev => ({ ...prev, alojamentos: { ...prev.alojamentos, [id]: { ...prev.alojamentos[id], [field]: value } } }));
   };
 
-  // --- AUXILIARES IMAGEM ---
   const carregarImagemBuffer = async (url: string) => { try { const r = await fetch(url); if (!r.ok) return null; const b = await r.blob(); return await b.arrayBuffer(); } catch { return null; } };
   const getBase64ImageFromURL = (url: string): Promise<string | null> => {
     return new Promise((resolve) => {
@@ -117,7 +109,6 @@ export default function Home() {
     });
   };
 
-  // --- GERAR ARQUIVOS (PDF/WORD) ---
   const gerarPDF = async (dataToPrint?: RelatorioData) => {
     const dados = dataToPrint || formData;
     try {
@@ -220,7 +211,6 @@ export default function Home() {
     } catch { alert("Erro ao criar o arquivo do Word."); }
   };
 
-  // --- HISTORICO E EXCLUSÃO ---
   const fetchHistory = async () => {
     setLoading(true);
     const { data } = await supabase.from('relatorios').select('*').order('created_at', { ascending: false });
@@ -234,31 +224,24 @@ export default function Home() {
   };
 
   const handleDeleteReport = async (id: number) => {
-    // 1. Verificar se é Admin
     if (session?.user?.email !== ADMIN_EMAIL) {
         alert("Apenas o administrador pode excluir relatórios.");
         return;
     }
-
-    // 2. Pedir senha de segurança
     const senhaDigitada = prompt("⚠️ ATENÇÃO: Essa ação não pode ser desfeita.\n\nPara excluir, digite a senha de administrador:");
-    
     if (senhaDigitada !== SENHA_EXCLUSAO) {
         alert("Senha incorreta. Exclusão cancelada.");
         return;
     }
-
-    // 3. Excluir no Supabase
     setLoading(true);
     const { error } = await supabase.from('relatorios').delete().eq('id', id);
     setLoading(false);
-
     if (error) {
         alert("Erro ao excluir: " + error.message);
     } else {
         alert("Relatório excluído com sucesso.");
-        setSelectedReport(null); // Fecha o modal
-        fetchHistory(); // Atualiza a lista
+        setSelectedReport(null);
+        fetchHistory();
     }
   };
 
@@ -286,9 +269,7 @@ export default function Home() {
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`, '_blank');
   };
 
-  // ------------------------- RENDERIZAÇÃO -------------------------
-
-  if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-gray-100 font-bold">Carregando...</div>;
+  if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-gray-100 font-bold text-gray-900">Carregando...</div>;
 
   if (!session) {
     return (
@@ -298,8 +279,8 @@ export default function Home() {
             <h1 className="text-2xl font-bold text-center text-blue-900 mb-2">CSIPRC Segurança</h1>
             <p className="text-center text-gray-500 mb-8 text-sm">Faça login para acessar</p>
             <form onSubmit={handleLogin} className="space-y-4">
-                <div><label className="block text-xs font-bold text-gray-700 uppercase mb-1">E-mail</label><input type="email" required className="w-full p-3 border rounded-lg outline-none" placeholder="usuario@csiprc.com" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} /></div>
-                <div><label className="block text-xs font-bold text-gray-700 uppercase mb-1">Senha</label><input type="password" required className="w-full p-3 border rounded-lg outline-none" placeholder="••••••••" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} /></div>
+                <div><label className="block text-xs font-bold text-gray-700 uppercase mb-1">E-mail</label><input type="email" required className="w-full p-3 border rounded-lg outline-none text-gray-900" placeholder="usuario@csiprc.com" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} /></div>
+                <div><label className="block text-xs font-bold text-gray-700 uppercase mb-1">Senha</label><input type="password" required className="w-full p-3 border rounded-lg outline-none text-gray-900" placeholder="••••••••" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} /></div>
                 <button disabled={loading} className="w-full bg-blue-900 text-white font-bold py-3 rounded-lg hover:bg-blue-800 transition">{loading ? 'Entrando...' : 'Entrar'}</button>
             </form>
         </div>
@@ -311,7 +292,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-100 font-sans pb-10">
-      {/* HEADER */}
       <div className="bg-blue-900 text-white p-4 sticky top-0 z-50 shadow-md flex justify-between items-center flex-wrap gap-2">
         <h1 className="font-bold text-sm md:text-lg flex items-center gap-2"><span>🛡️</span> CSIPRC Segurança</h1>
         <div className="flex gap-2 flex-wrap justify-end items-center">
@@ -330,43 +310,33 @@ export default function Home() {
 
       <div className="max-w-5xl mx-auto bg-white shadow-lg min-h-screen mt-4 rounded-xl overflow-hidden">
         
-        {/* VIEW: ADMIN */}
         {view === 'admin' && (
             <div className="p-8 max-w-lg mx-auto">
                 <h2 className="text-2xl font-bold text-purple-900 mb-6 text-center">Painel Admin</h2>
                 <div className="bg-purple-50 p-6 rounded-xl border border-purple-100">
                     <h3 className="font-bold text-purple-800 mb-4">Cadastrar Novo Usuário</h3>
                     <form onSubmit={handleRegisterUser} className="space-y-4">
-                        <div><label className="block text-xs font-bold text-gray-600 uppercase">E-mail</label><input type="email" required className="w-full p-2 border rounded" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} /></div>
-                        <div><label className="block text-xs font-bold text-gray-600 uppercase">Senha</label><input type="password" required className="w-full p-2 border rounded" value={newUserPassword} onChange={e => setNewUserPassword(e.target.value)} /></div>
+                        <div><label className="block text-xs font-bold text-gray-600 uppercase">E-mail</label><input type="email" required className="w-full p-2 border rounded text-gray-900" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} /></div>
+                        <div><label className="block text-xs font-bold text-gray-600 uppercase">Senha</label><input type="password" required className="w-full p-2 border rounded text-gray-900" value={newUserPassword} onChange={e => setNewUserPassword(e.target.value)} /></div>
                         <button disabled={loading} className="w-full bg-purple-600 text-white py-2 rounded font-bold hover:bg-purple-700">{loading ? '...' : 'Cadastrar'}</button>
                     </form>
                 </div>
             </div>
         )}
 
-        {/* VIEW: HISTÓRICO */}
         {view === 'history' && (
             <div className="p-6">
-                
-                {/* --- MODO LEITURA (DETALHES DO RELATÓRIO) --- */}
                 {selectedReport ? (
                    <div className="animate-fade-in-up">
                       <div className="flex justify-between items-center border-b pb-4 mb-4">
                          <h2 className="text-xl md:text-2xl font-bold text-blue-900">📄 Visualizar Relatório</h2>
                          <button onClick={() => setSelectedReport(null)} className="text-sm bg-gray-200 px-3 py-1 rounded text-gray-700 hover:bg-gray-300 font-bold">FECHAR X</button>
                       </div>
-                      
-                      {/* CARTÃO ESTILO PAPEL A4 */}
                       <div className="bg-white p-6 md:p-10 rounded shadow-lg border border-gray-200 max-w-4xl mx-auto text-gray-800 text-sm md:text-base">
-                         
-                         {/* Cabeçalho do Relatório */}
                          <div className="text-center border-b-2 border-blue-900 pb-4 mb-6">
                              <h1 className="text-xl md:text-2xl font-bold text-blue-900 uppercase">Relatório Equipe de Segurança – CSIPRC</h1>
                              <p className="text-lg font-bold mt-2 text-gray-600">Data: {selectedReport.data}</p>
                          </div>
-
-                         {/* Equipe */}
                          <div className="mb-6">
                              <h3 className="text-blue-900 font-bold border-b border-gray-300 mb-3 uppercase">👥 Equipe</h3>
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-y-2 gap-x-4">
@@ -376,8 +346,6 @@ export default function Home() {
                                 <p><span className="font-bold">PLANTÃO:</span> {selectedReport.plantao}</p>
                              </div>
                          </div>
-
-                         {/* Materiais */}
                          <div className="mb-6">
                              <h3 className="text-blue-900 font-bold border-b border-gray-300 mb-3 uppercase">🛡️ Materiais</h3>
                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs md:text-sm">
@@ -387,12 +355,9 @@ export default function Home() {
                                 <div className="bg-gray-50 p-2 rounded">Rádio HT: <strong>{selectedReport.radioHT}</strong></div>
                                 <div className="bg-gray-50 p-2 rounded">Lanternas: <strong>{selectedReport.lanternas}</strong></div>
                                 <div className="bg-gray-50 p-2 rounded">Escudos: <strong>{selectedReport.escudos}</strong></div>
-                                {/* Exibindo apenas alguns principais para não poluir, ou mapeie todos */}
                                 <div className="bg-gray-50 p-2 rounded col-span-2 text-gray-400 italic text-center">(Ver PDF para lista completa)</div>
                              </div>
                          </div>
-
-                         {/* Alojamentos */}
                          <div className="mb-6">
                              <h3 className="text-blue-900 font-bold border-b border-gray-300 mb-3 uppercase">🔢 Adolescentes</h3>
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -403,16 +368,12 @@ export default function Home() {
                                 ))}
                              </div>
                          </div>
-
-                         {/* Resumo */}
                          <div className="mb-6">
                              <h3 className="text-blue-900 font-bold border-b border-gray-300 mb-3 uppercase">📝 Resumo do Plantão</h3>
-                             <div className="bg-gray-50 p-4 rounded border border-gray-200 whitespace-pre-wrap min-h-[100px]">
+                             <div className="bg-gray-50 p-4 rounded border border-gray-200 whitespace-pre-wrap min-h-[100px] text-gray-900">
                                 {selectedReport.resumoPlantao}
                              </div>
                          </div>
-
-                         {/* Assinaturas */}
                          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8 text-center">
                              <div>
                                  <div className="border-b border-black mb-2 mx-10"></div>
@@ -425,44 +386,21 @@ export default function Home() {
                                  <p className="text-xs text-gray-500 uppercase">Supervisor Noturno</p>
                              </div>
                          </div>
-
                       </div>
-
-                      {/* BOTÕES DE AÇÃO NO RODAPÉ DO DETALHE */}
                       <div className="mt-6 flex flex-wrap justify-center gap-3">
-                            <button onClick={() => gerarPDF(selectedReport)} className="bg-red-600 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-red-700 flex items-center gap-2">
-                                📄 Baixar PDF
-                            </button>
-                            <button onClick={() => gerarWord(selectedReport)} className="bg-blue-600 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-blue-700 flex items-center gap-2">
-                                📄 Baixar Word
-                            </button>
-                            
-                            {/* BOTÃO EXCLUIR (SÓ PARA ADMIN) */}
-                            {isUserAdmin && (
-                                <button 
-                                    onClick={() => handleDeleteReport(selectedReport.id!)} 
-                                    className="bg-gray-800 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-black flex items-center gap-2 border border-red-500"
-                                >
-                                    🗑️ Excluir Relatório
-                                </button>
-                            )}
+                            <button onClick={() => gerarPDF(selectedReport)} className="bg-red-600 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-red-700 flex items-center gap-2">📄 Baixar PDF</button>
+                            <button onClick={() => gerarWord(selectedReport)} className="bg-blue-600 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-blue-700 flex items-center gap-2">📄 Baixar Word</button>
+                            {isUserAdmin && (<button onClick={() => handleDeleteReport(selectedReport.id!)} className="bg-gray-800 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-black flex items-center gap-2 border border-red-500">🗑️ Excluir Relatório</button>)}
                       </div>
                    </div>
-
                 ) : (
-                    /* LISTA DE CARDS (QUANDO NADA SELECIONADO) */
                     <>
                         <h2 className="text-2xl font-bold text-blue-900 mb-4">Histórico de Relatórios</h2>
-                        {loading && <p>Carregando...</p>}
+                        {loading && <p className="text-gray-900">Carregando...</p>}
                         {!loading && historico.length === 0 && <p className="text-gray-500">Nenhum relatório encontrado.</p>}
-                        
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {historico.map((item) => (
-                                <div 
-                                    key={item.id} 
-                                    onClick={() => setSelectedReport(item)} 
-                                    className="cursor-pointer border border-gray-200 p-4 rounded-lg shadow-sm hover:shadow-md bg-white hover:bg-blue-50 transition group"
-                                >
+                                <div key={item.id} onClick={() => setSelectedReport(item)} className="cursor-pointer border border-gray-200 p-4 rounded-lg shadow-sm hover:shadow-md bg-white hover:bg-blue-50 transition group">
                                     <div className="flex justify-between items-start mb-2">
                                         <h3 className="font-bold text-lg text-blue-800 group-hover:text-blue-600">{item.data}</h3>
                                         <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-bold">{item.plantao}</span>
@@ -478,17 +416,16 @@ export default function Home() {
             </div>
         )}
 
-        {/* VIEW: FORMULÁRIO (PADRÃO) */}
         {view === 'form' && (
             <form className="p-6 space-y-8" onSubmit={(e) => e.preventDefault()}>
             <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 flex justify-between items-center">
-                <div><label className="block text-xs font-bold text-blue-800 uppercase mb-1">Data</label><input type="text" name="data" value={formData.data} onChange={handleChange} className="w-40 p-2 border rounded bg-white font-mono" /></div>
+                <div><label className="block text-xs font-bold text-blue-800 uppercase mb-1">Data</label><input type="text" name="data" value={formData.data} onChange={handleChange} className="w-40 p-2 border rounded bg-white font-mono text-gray-900" /></div>
                 <div className="text-xs text-blue-600 font-semibold hidden md:block">Logado como: {session.user.email}</div>
             </div>
-            <section><h3 className="flex items-center text-blue-900 font-bold border-b-2 border-blue-200 mb-4 pb-2 text-xl"><span className="mr-2">👥</span> Equipe</h3><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"><div><label className="text-xs font-bold text-gray-500 block mb-1">SUPERVISOR</label><input placeholder="Nome" name="supervisor" value={formData.supervisor} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 font-semibold" /></div><div><label className="text-xs font-bold text-gray-500 block mb-1">EDUCADORES</label><input placeholder="Nomes" name="educadores" value={formData.educadores} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50" /></div><div><label className="text-xs font-bold text-gray-500 block mb-1">APOIO</label><input placeholder="Portaria/Cozinha" name="apoio" value={formData.apoio} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50" /></div><div><label className="text-xs font-bold text-gray-500 block mb-1">PLANTÃO</label><input placeholder="Ex: Alfa" name="plantao" value={formData.plantao} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50" /></div></div></section>
-            <section><h3 className="flex items-center text-blue-900 font-bold border-b-2 border-blue-200 mb-4 pb-2 mt-8 text-xl"><span className="mr-2">🛡️</span> Materiais (Qtd)</h3><div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">{['tonfas', 'algemas', 'chavesAcesso', 'chavesAlgemas', 'escudos', 'lanternas', 'celular', 'radioCelular', 'radioHT', 'cadeados', 'pendrives'].map((item) => (<div key={item} className="flex flex-col"><label className="text-gray-600 text-xs capitalize mb-1">{item.replace(/([A-Z])/g, ' $1')}</label><input type="number" name={item} onChange={handleChange} value={formData[item as keyof RelatorioData] as string} className="w-full border p-2 rounded bg-white" placeholder="0"/></div>))}</div></section>
-            <section><h3 className="flex items-center text-blue-900 font-bold border-b-2 border-blue-200 mb-4 pb-2 mt-8 text-xl"><span className="mr-2">🔢</span> Adolescentes</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{['01', '02', '03', '04', '05', '06', '07', '08'].map((num) => (<div key={num} className="bg-gray-50 p-3 rounded border border-gray-200 flex gap-2 items-center"><span className="font-bold text-blue-800 text-sm w-12">AL-{num}</span><input type="number" placeholder="Qtd" value={formData.alojamentos[num].qtd} onChange={(e) => handleAlojamentoChange(num, 'qtd', e.target.value)} className="w-16 border p-2 text-center rounded font-bold" /><input type="text" placeholder="Nomes..." value={formData.alojamentos[num].nomes} onChange={(e) => handleAlojamentoChange(num, 'nomes', e.target.value)} className="flex-1 border p-2 rounded text-sm" /></div>))}</div></section>
-            <section><h3 className="flex items-center text-blue-900 font-bold border-b-2 border-blue-200 mb-4 pb-2 mt-8 text-xl"><span className="mr-2">📝</span> Resumo</h3><textarea name="resumoPlantao" value={formData.resumoPlantao} placeholder="Fale aqui..." onChange={handleChange} className="w-full border p-3 rounded h-40 mb-6 outline-none text-lg"></textarea><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Supervisor Diurno</label><input placeholder="Assinatura..." name="assinaturaDiurno" value={formData.assinaturaDiurno} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50" /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Supervisor Noturno</label><input placeholder="Assinatura..." name="assinaturaNoturno" value={formData.assinaturaNoturno} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50" /></div></div></section>
+            <section><h3 className="flex items-center text-blue-900 font-bold border-b-2 border-blue-200 mb-4 pb-2 text-xl"><span className="mr-2">👥</span> Equipe</h3><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"><div><label className="text-xs font-bold text-gray-500 block mb-1">SUPERVISOR</label><input placeholder="Nome" name="supervisor" value={formData.supervisor} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 font-semibold text-gray-900" /></div><div><label className="text-xs font-bold text-gray-500 block mb-1">EDUCADORES</label><input placeholder="Nomes" name="educadores" value={formData.educadores} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 text-gray-900" /></div><div><label className="text-xs font-bold text-gray-500 block mb-1">APOIO</label><input placeholder="Portaria/Cozinha" name="apoio" value={formData.apoio} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 text-gray-900" /></div><div><label className="text-xs font-bold text-gray-500 block mb-1">PLANTÃO</label><input placeholder="Ex: Alfa" name="plantao" value={formData.plantao} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 text-gray-900" /></div></div></section>
+            <section><h3 className="flex items-center text-blue-900 font-bold border-b-2 border-blue-200 mb-4 pb-2 mt-8 text-xl"><span className="mr-2">🛡️</span> Materiais (Qtd)</h3><div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">{['tonfas', 'algemas', 'chavesAcesso', 'chavesAlgemas', 'escudos', 'lanternas', 'celular', 'radioCelular', 'radioHT', 'cadeados', 'pendrives'].map((item) => (<div key={item} className="flex flex-col"><label className="text-gray-600 text-xs capitalize mb-1">{item.replace(/([A-Z])/g, ' $1')}</label><input type="number" name={item} onChange={handleChange} value={formData[item as keyof RelatorioData] as string} className="w-full border p-2 rounded bg-white text-gray-900" placeholder="0"/></div>))}</div></section>
+            <section><h3 className="flex items-center text-blue-900 font-bold border-b-2 border-blue-200 mb-4 pb-2 mt-8 text-xl"><span className="mr-2">🔢</span> Adolescentes</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{['01', '02', '03', '04', '05', '06', '07', '08'].map((num) => (<div key={num} className="bg-gray-50 p-3 rounded border border-gray-200 flex gap-2 items-center"><span className="font-bold text-blue-800 text-sm w-12">AL-{num}</span><input type="number" placeholder="Qtd" value={formData.alojamentos[num].qtd} onChange={(e) => handleAlojamentoChange(num, 'qtd', e.target.value)} className="w-16 border p-2 text-center rounded font-bold text-gray-900" /><input type="text" placeholder="Nomes..." value={formData.alojamentos[num].nomes} onChange={(e) => handleAlojamentoChange(num, 'nomes', e.target.value)} className="flex-1 border p-2 rounded text-sm text-gray-900" /></div>))}</div></section>
+            <section><h3 className="flex items-center text-blue-900 font-bold border-b-2 border-blue-200 mb-4 pb-2 mt-8 text-xl"><span className="mr-2">📝</span> Resumo</h3><textarea name="resumoPlantao" value={formData.resumoPlantao} placeholder="Fale aqui..." onChange={handleChange} className="w-full border p-3 rounded h-40 mb-6 outline-none text-lg text-gray-900"></textarea><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Supervisor Diurno</label><input placeholder="Assinatura..." name="assinaturaDiurno" value={formData.assinaturaDiurno} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 text-gray-900" /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Supervisor Noturno</label><input placeholder="Assinatura..." name="assinaturaNoturno" value={formData.assinaturaNoturno} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 text-gray-900" /></div></div></section>
             <div className="pt-6 pb-8 grid grid-cols-1 md:grid-cols-2 gap-4"><div className="flex gap-2"><button onClick={() => gerarWord(formData)} className="flex-1 bg-blue-600 text-white font-bold py-4 rounded-xl shadow hover:bg-blue-700 transition">📄 Word</button><button onClick={() => gerarPDF(formData)} className="flex-1 bg-red-600 text-white font-bold py-4 rounded-xl shadow hover:bg-red-700 transition">📄 PDF</button></div><div className="flex gap-2"><button onClick={handleSalvarApenas} className="flex-1 bg-gray-700 text-white font-bold py-4 rounded-xl shadow hover:bg-gray-800 transition flex items-center justify-center gap-2">💾 Salvar</button><button onClick={handleSaveAndSend} className="flex-1 bg-green-600 text-white font-bold py-4 rounded-xl shadow hover:bg-green-700 transition flex items-center justify-center gap-2">📱 Zap + Salvar</button></div></div>
             </form>
         )}
