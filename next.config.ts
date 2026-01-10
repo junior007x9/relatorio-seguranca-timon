@@ -4,8 +4,8 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // --- ADICIONE ISSO PARA IGNORAR ERROS DE TYPESCRIPT NO VERCEL ---
   typescript: {
+    // !! ATENÇÃO: Isso força o build mesmo com erros !!
     ignoreBuildErrors: true,
   },
   eslint: {
