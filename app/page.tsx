@@ -7,10 +7,14 @@ import {
   WidthType, AlignmentType, BorderStyle, Header, ImageRun   
 } from 'docx';
 import { saveAs } from 'file-saver';
+
+// --- CORREÇÃO DO ERRO VERCEL AQUI ---
+// @ts-ignore
 import pdfMake from "pdfmake/build/pdfmake";
+// @ts-ignore
 import pdfFonts from "pdfmake/build/vfs_fonts";
 
-// --- CONFIGURAÇÃO PDFMAKE ---
+// Configuração pdfMake
 if (typeof window !== 'undefined' && pdfMake.vfs === undefined) {
   // @ts-ignore
   pdfMake.vfs = pdfFonts.pdfMake ? pdfFonts.pdfMake.vfs : pdfFonts.vfs;
