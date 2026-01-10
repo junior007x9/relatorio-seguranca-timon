@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+# tetse
+node_modules
+.next
+.env.local
+android
+ios
+build
+dist
