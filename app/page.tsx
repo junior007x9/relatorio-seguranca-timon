@@ -36,9 +36,8 @@ type RelatorioData = {
   celular: string; radioCelular: string; radioHT: string; cadeados: string; pendrives: string;
   alojamentos: { [key: string]: AlojamentoDados };
   resumoPlantao: string; assinaturaDiurno: string; assinaturaNoturno: string;
-  // Campos de Saída
+  // Campos Extras
   temSaida: boolean; saidaAdolescente: string; saidaEducador: string; saidaHorario: string;
-  // NOVOS CAMPOS: Folga e Férias
   temFolga: boolean; educadoresFolga: string;
   temFerias: boolean; educadoresFerias: string;
 };
@@ -68,7 +67,6 @@ export default function Home() {
     },
     resumoPlantao: '', assinaturaDiurno: '', assinaturaNoturno: '',
     temSaida: false, saidaAdolescente: '', saidaEducador: '', saidaHorario: '',
-    // Inicializa novos campos
     temFolga: false, educadoresFolga: '',
     temFerias: false, educadoresFerias: ''
   });
@@ -132,7 +130,6 @@ export default function Home() {
           { columns: [{ width: '*', text: [{ text: 'EDUCADORES: ', bold: true }, dados.educadores] }], margin: [0, 5] },
       ];
 
-      // Adiciona Folga e Férias no PDF se existirem
       if (dados.temFolga) {
           contentArray.push({ columns: [{ width: '*', text: [{ text: 'FOLGA: ', bold: true }, dados.educadoresFolga] }], margin: [0, 5] });
       }
@@ -216,7 +213,6 @@ export default function Home() {
               new Paragraph({ children: [new TextRun({ text: "EDUCADORES: ", bold: true }), new TextRun(dados.educadores)] }),
         ];
 
-        // INSERE FOLGA E FERIAS NO WORD
         if (dados.temFolga) {
             childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "FOLGA: ", bold: true }), new TextRun(dados.educadoresFolga)] }));
         }
@@ -292,7 +288,6 @@ export default function Home() {
         ...item, data: item.data_plantao, apoio: item.servicos_gerais || item.agente_portaria || '', supervisor: item.supervisor,
         resumoPlantao: item.resumo_plantao, assinaturaDiurno: item.plantao_diurno, assinaturaNoturno: item.plantao_noturno, alojamentos: item.alojamentos || {},
         temSaida: item.tem_saida || false, saidaAdolescente: item.saida_adolescente || '', saidaEducador: item.saida_educador || '', saidaHorario: item.saida_horario || '',
-        // Mapeia novos campos
         temFolga: item.tem_folga || false, educadoresFolga: item.educadores_folga || '',
         temFerias: item.tem_ferias || false, educadoresFerias: item.educadores_ferias || ''
       })));
@@ -314,7 +309,6 @@ export default function Home() {
       tonfas: formData.tonfas, algemas: formData.algemas, chaves_acesso: formData.chavesAcesso, chaves_algemas: formData.chavesAlgemas, escudos: formData.escudos, lanternas: formData.lanternas, celular: formData.celular, radio_celular: formData.radioCelular, radio_ht: formData.radioHT, cadeados: formData.cadeados, pendrives: formData.pendrives,
       alojamentos: formData.alojamentos, resumo_plantao: formData.resumoPlantao, plantao_diurno: formData.assinaturaDiurno, plantao_noturno: formData.assinaturaNoturno,
       tem_saida: formData.temSaida, saida_adolescente: formData.saidaAdolescente, saida_educador: formData.saidaEducador, saida_horario: formData.saidaHorario,
-      // Novos campos
       tem_folga: formData.temFolga, educadores_folga: formData.educadoresFolga,
       tem_ferias: formData.temFerias, educadores_ferias: formData.educadoresFerias
     }]);
@@ -327,6 +321,7 @@ export default function Home() {
     if (error) alert("Erro ao salvar: " + error.message); else alert("✅ Salvo com sucesso!");
   };
 
+  // --- WHATSAPP ATUALIZADO (RELATÓRIO COMPLETO) ---
   const handleSaveAndSend = async () => {
     setLoading(true);
     const { error } = await salvarNoSupabase();
@@ -340,8 +335,29 @@ export default function Home() {
 
     texto += `\n🤝 Apoio: ${formData.apoio}\n🕒 Plantão: ${formData.plantao}`;
     
-    if (formData.temSaida) { texto += `\n\n*🚨 SAÍDA EXTERNA*\n👤 Adolescente: ${formData.saidaAdolescente}\n👮 Educador: ${formData.saidaEducador}\n⏰ Horário: ${formData.saidaHorario}`; }
-    texto += `\n\n*RESUMO DO PLANTÃO*\n📝 ${formData.resumoPlantao}\n\n*ASSINATURAS*\n☀️ Diurno: ${formData.assinaturaDiurno}\n🌙 Noturno: ${formData.assinaturaNoturno}\n\n_(Ver detalhes completos no arquivo Word/PDF)_`;
+    if (formData.temSaida) { 
+        texto += `\n\n*🚨 SAÍDA EXTERNA*\n👤 Adolescente: ${formData.saidaAdolescente}\n👮 Educador: ${formData.saidaEducador}\n⏰ Horário: ${formData.saidaHorario}`; 
+    }
+
+    // LISTA COMPLETA DE MATERIAIS
+    texto += `\n\n*🛡️ MATERIAIS*`;
+    texto += `\nTonfas: ${formData.tonfas} | Algemas: ${formData.algemas}`;
+    texto += `\nCelular: ${formData.celular} | Rádio HT: ${formData.radioHT}`;
+    texto += `\nChaves Acesso: ${formData.chavesAcesso} | Chaves Algemas: ${formData.chavesAlgemas}`;
+    texto += `\nCadeados: ${formData.cadeados} | Pendrives: ${formData.pendrives}`;
+    texto += `\nEscudos: ${formData.escudos} | Lanternas: ${formData.lanternas}`;
+    texto += `\nRádio Celular: ${formData.radioCelular}`;
+
+    // LISTA COMPLETA DE ALOJAMENTOS
+    texto += `\n\n*🔢 ADOLESCENTES*`;
+    ['01', '02', '03', '04', '05', '06', '07', '08'].forEach(num => {
+        const al = formData.alojamentos[num];
+        texto += `\nAL-${num}: ${al.qtd} ${al.nomes ? `(${al.nomes})` : ''}`;
+    });
+
+    texto += `\n\n*RESUMO DO PLANTÃO*\n📝 ${formData.resumoPlantao}`;
+    texto += `\n\n*ASSINATURAS*\n☀️ Diurno: ${formData.assinaturaDiurno}\n🌙 Noturno: ${formData.assinaturaNoturno}`;
+    
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`, '_blank');
   };
 
@@ -420,7 +436,6 @@ export default function Home() {
                                 <p><span className="font-bold">SUPERVISOR:</span> {selectedReport.supervisor}</p>
                                 <p><span className="font-bold">EDUCADORES:</span> {selectedReport.educadores}</p>
                                 
-                                {/* EXIBIÇÃO HISTORICO FOLGA/FERIAS */}
                                 {selectedReport.temFolga && <p><span className="font-bold text-gray-700">FOLGA:</span> {selectedReport.educadoresFolga}</p>}
                                 {selectedReport.temFerias && <p><span className="font-bold text-gray-700">FÉRIAS:</span> {selectedReport.educadoresFerias}</p>}
 
@@ -521,7 +536,7 @@ export default function Home() {
                     <div><label className="text-xs font-bold text-gray-500 block mb-1">SUPERVISOR</label><input placeholder="Nome" name="supervisor" value={formData.supervisor} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 font-semibold text-gray-900" /></div>
                     <div><label className="text-xs font-bold text-gray-500 block mb-1">EDUCADORES</label><input placeholder="Nomes" name="educadores" value={formData.educadores} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 text-gray-900" /></div>
                     
-                    {/* NOVOS CAMPOS: FOLGA E FÉRIAS */}
+                    {/* CAMPOS FOLGA E FÉRIAS */}
                     <div className="col-span-full border-t border-gray-100 pt-3 mt-1 grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="bg-gray-50 p-2 rounded border border-gray-200">
                             <div className="flex items-center gap-2 mb-2">
