@@ -117,6 +117,43 @@ export default function Home() {
     });
   };
 
+  // --- FUNÇÃO AUXILIAR: GERAR TEXTO DO ZAP ---
+  const gerarTextoWhatsApp = (dados: RelatorioData) => {
+    let texto = `*RELATÓRIO EQUIPE DE SEGURANÇA - CSIPRC*\n📅 Data: ${dados.data}\n\n*EQUIPE*\n👮 Supervisor: ${dados.supervisor}\n👥 Educadores: ${dados.educadores}`;
+    
+    if (dados.temFolga) texto += `\n🏖️ Folga: ${dados.educadoresFolga}`;
+    if (dados.temFerias) texto += `\n✈️ Férias: ${dados.educadoresFerias}`;
+
+    texto += `\n🤝 Apoio: ${dados.apoio}\n🕒 Plantão: ${dados.plantao}`;
+    
+    if (dados.temSaida) { 
+        texto += `\n\n*🚨 SAÍDA EXTERNA*\n👤 Adolescente: ${dados.saidaAdolescente}\n👮 Educador: ${dados.saidaEducador}\n⏰ Horário: ${dados.saidaHorario}`; 
+    }
+
+    // LISTA COMPLETA DE MATERIAIS
+    texto += `\n\n*🛡️ MATERIAIS*`;
+    texto += `\nTonfas: ${dados.tonfas} | Algemas: ${dados.algemas}`;
+    texto += `\nCelular: ${dados.celular} | Rádio HT: ${dados.radioHT}`;
+    texto += `\nChaves Acesso: ${dados.chavesAcesso} | Chaves Algemas: ${dados.chavesAlgemas}`;
+    texto += `\nCadeados: ${dados.cadeados} | Pendrives: ${dados.pendrives}`;
+    texto += `\nEscudos: ${dados.escudos} | Lanternas: ${dados.lanternas}`;
+    texto += `\nRádio Celular: ${dados.radioCelular}`;
+
+    // LISTA COMPLETA DE ALOJAMENTOS
+    texto += `\n\n*🔢 ADOLESCENTES*`;
+    ['01', '02', '03', '04', '05', '06', '07', '08'].forEach(num => {
+        const al = dados.alojamentos[num];
+        if (al) {
+            texto += `\nAL-${num}: ${al.qtd} ${al.nomes ? `(${al.nomes})` : ''}`;
+        }
+    });
+
+    texto += `\n\n*RESUMO DO PLANTÃO*\n📝 ${dados.resumoPlantao}`;
+    texto += `\n\n*ASSINATURAS*\n☀️ Diurno: ${dados.assinaturaDiurno}\n🌙 Noturno: ${dados.assinaturaNoturno}`;
+
+    return texto;
+  };
+
   // --- PDF ---
   const gerarPDF = async (dataToPrint?: RelatorioData) => {
     const dados = dataToPrint || formData;
@@ -321,43 +358,18 @@ export default function Home() {
     if (error) alert("Erro ao salvar: " + error.message); else alert("✅ Salvo com sucesso!");
   };
 
-  // --- WHATSAPP ATUALIZADO (RELATÓRIO COMPLETO) ---
   const handleSaveAndSend = async () => {
     setLoading(true);
     const { error } = await salvarNoSupabase();
     setLoading(false);
     if (error) { alert("Erro ao salvar: " + error.message); return; }
     
-    let texto = `*RELATÓRIO EQUIPE DE SEGURANÇA - CSIPRC*\n📅 Data: ${formData.data}\n\n*EQUIPE*\n👮 Supervisor: ${formData.supervisor}\n👥 Educadores: ${formData.educadores}`;
-    
-    if (formData.temFolga) texto += `\n🏖️ Folga: ${formData.educadoresFolga}`;
-    if (formData.temFerias) texto += `\n✈️ Férias: ${formData.educadoresFerias}`;
+    const texto = gerarTextoWhatsApp(formData);
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`, '_blank');
+  };
 
-    texto += `\n🤝 Apoio: ${formData.apoio}\n🕒 Plantão: ${formData.plantao}`;
-    
-    if (formData.temSaida) { 
-        texto += `\n\n*🚨 SAÍDA EXTERNA*\n👤 Adolescente: ${formData.saidaAdolescente}\n👮 Educador: ${formData.saidaEducador}\n⏰ Horário: ${formData.saidaHorario}`; 
-    }
-
-    // LISTA COMPLETA DE MATERIAIS
-    texto += `\n\n*🛡️ MATERIAIS*`;
-    texto += `\nTonfas: ${formData.tonfas} | Algemas: ${formData.algemas}`;
-    texto += `\nCelular: ${formData.celular} | Rádio HT: ${formData.radioHT}`;
-    texto += `\nChaves Acesso: ${formData.chavesAcesso} | Chaves Algemas: ${formData.chavesAlgemas}`;
-    texto += `\nCadeados: ${formData.cadeados} | Pendrives: ${formData.pendrives}`;
-    texto += `\nEscudos: ${formData.escudos} | Lanternas: ${formData.lanternas}`;
-    texto += `\nRádio Celular: ${formData.radioCelular}`;
-
-    // LISTA COMPLETA DE ALOJAMENTOS
-    texto += `\n\n*🔢 ADOLESCENTES*`;
-    ['01', '02', '03', '04', '05', '06', '07', '08'].forEach(num => {
-        const al = formData.alojamentos[num];
-        texto += `\nAL-${num}: ${al.qtd} ${al.nomes ? `(${al.nomes})` : ''}`;
-    });
-
-    texto += `\n\n*RESUMO DO PLANTÃO*\n📝 ${formData.resumoPlantao}`;
-    texto += `\n\n*ASSINATURAS*\n☀️ Diurno: ${formData.assinaturaDiurno}\n🌙 Noturno: ${formData.assinaturaNoturno}`;
-    
+  const handleResendWhatsApp = (report: RelatorioData) => {
+    const texto = gerarTextoWhatsApp(report);
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`, '_blank');
   };
 
@@ -498,7 +510,10 @@ export default function Home() {
                              </div>
                          </div>
                       </div>
+                      
+                      {/* BOTÕES DE AÇÃO NO HISTÓRICO */}
                       <div className="mt-6 flex flex-wrap justify-center gap-3">
+                            <button onClick={() => handleResendWhatsApp(selectedReport)} className="bg-green-600 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-green-700 flex items-center gap-2">📱 Enviar WhatsApp</button>
                             <button onClick={() => gerarPDF(selectedReport)} className="bg-red-600 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-red-700 flex items-center gap-2">📄 Baixar PDF</button>
                             <button onClick={() => gerarWord(selectedReport)} className="bg-blue-600 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-blue-700 flex items-center gap-2">📄 Baixar Word</button>
                             {isUserAdmin && (<button onClick={() => handleDeleteReport(selectedReport.id!)} className="bg-gray-800 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-black flex items-center gap-2 border border-red-500">🗑️ Excluir Relatório</button>)}
@@ -540,7 +555,6 @@ export default function Home() {
                     <div><label className="text-xs font-bold text-gray-500 block mb-1">SUPERVISOR</label><input placeholder="Nome" name="supervisor" value={formData.supervisor} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 font-semibold text-gray-900" /></div>
                     <div><label className="text-xs font-bold text-gray-500 block mb-1">EDUCADORES</label><input placeholder="Nomes" name="educadores" value={formData.educadores} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 text-gray-900" /></div>
                     
-                    {/* CAMPOS FOLGA E FÉRIAS */}
                     <div className="col-span-full border-t border-gray-100 pt-3 mt-1 grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="bg-gray-50 p-2 rounded border border-gray-200">
                             <div className="flex items-center gap-2 mb-2">
@@ -571,7 +585,6 @@ export default function Home() {
             
             <section><h3 className="flex items-center text-blue-900 font-bold border-b-2 border-blue-200 mb-4 pb-2 mt-8 text-xl"><span className="mr-2">🔢</span> Adolescentes</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{['01', '02', '03', '04', '05', '06', '07', '08'].map((num) => (<div key={num} className="bg-gray-50 p-3 rounded border border-gray-200 flex gap-2 items-center"><span className="font-bold text-blue-800 text-sm w-12">AL-{num}</span><input type="number" placeholder="Qtd" value={formData.alojamentos[num].qtd} onChange={(e) => handleAlojamentoChange(num, 'qtd', e.target.value)} className="w-16 border p-2 text-center rounded font-bold text-gray-900" /><input type="text" placeholder="Nomes..." value={formData.alojamentos[num].nomes} onChange={(e) => handleAlojamentoChange(num, 'nomes', e.target.value)} className="flex-1 border p-2 rounded text-sm text-gray-900" /></div>))}</div></section>
             
-            {/* SAÍDA EXTERNA */}
             <section className="mt-8 bg-red-50 p-4 rounded-lg border border-red-200">
                 <div className="flex items-center gap-3 mb-4">
                     <input type="checkbox" id="temSaida" name="temSaida" checked={formData.temSaida} onChange={handleChange} className="w-6 h-6 text-red-600 rounded focus:ring-red-500 border-gray-300" />
