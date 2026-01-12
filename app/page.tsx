@@ -455,14 +455,18 @@ export default function Home() {
 
                          <div className="mb-6">
                              <h3 className="text-blue-900 font-bold border-b border-gray-300 mb-3 uppercase">🛡️ Materiais</h3>
-                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs md:text-sm">
-                                <div className="bg-gray-50 p-2 rounded">Tonfas: <strong>{selectedReport.tonfas}</strong></div>
-                                <div className="bg-gray-50 p-2 rounded">Algemas: <strong>{selectedReport.algemas}</strong></div>
-                                <div className="bg-gray-50 p-2 rounded">Celular: <strong>{selectedReport.celular}</strong></div>
-                                <div className="bg-gray-50 p-2 rounded">Rádio HT: <strong>{selectedReport.radioHT}</strong></div>
-                                <div className="bg-gray-50 p-2 rounded">Lanternas: <strong>{selectedReport.lanternas}</strong></div>
-                                <div className="bg-gray-50 p-2 rounded">Escudos: <strong>{selectedReport.escudos}</strong></div>
-                                <div className="bg-gray-50 p-2 rounded col-span-2 text-gray-400 italic text-center">(Ver PDF para lista completa)</div>
+                             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                                <div className="bg-gray-50 p-2 rounded border">Tonfas: <b>{selectedReport.tonfas}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Algemas: <b>{selectedReport.algemas}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Celular: <b>{selectedReport.celular}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Rádio HT: <b>{selectedReport.radioHT}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Lanternas: <b>{selectedReport.lanternas}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Escudos: <b>{selectedReport.escudos}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Rádio Cel: <b>{selectedReport.radioCelular}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Chaves Acesso: <b>{selectedReport.chavesAcesso}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Chaves Algema: <b>{selectedReport.chavesAlgemas}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Cadeados: <b>{selectedReport.cadeados}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Pendrives: <b>{selectedReport.pendrives}</b></div>
                              </div>
                          </div>
                          <div className="mb-6">
