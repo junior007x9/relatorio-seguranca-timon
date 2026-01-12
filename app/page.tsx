@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, 
@@ -27,6 +27,8 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // --- CONFIGURAÇÕES ---
 const ADMIN_EMAIL = 'admin@csiprc.com'; 
 const SENHA_EXCLUSAO = '1234';
+const TEMPO_INATIVIDADE = 5 * 60 * 1000; // 5 Minutos em milissegundos
+const TEMPO_AVISO = 4.5 * 60 * 1000;     // 4 Minutos e 30 segundos (Avisa 30s antes)
 
 // --- TIPAGEM ---
 type AlojamentoDados = { qtd: string; nomes: string; };
@@ -36,7 +38,6 @@ type RelatorioData = {
   celular: string; radioCelular: string; radioHT: string; cadeados: string; pendrives: string;
   alojamentos: { [key: string]: AlojamentoDados };
   resumoPlantao: string; assinaturaDiurno: string; assinaturaNoturno: string;
-  // Campos Extras
   temSaida: boolean; saidaAdolescente: string; saidaEducador: string; saidaHorario: string;
   temFolga: boolean; educadoresFolga: string;
   temFerias: boolean; educadoresFerias: string;
@@ -52,6 +53,11 @@ export default function Home() {
   const [view, setView] = useState<'form' | 'history' | 'admin'>('form');
   const [historico, setHistorico] = useState<RelatorioData[]>([]);
   const [selectedReport, setSelectedReport] = useState<RelatorioData | null>(null);
+  
+  // Controle de Inatividade
+  const [showInactivityWarning, setShowInactivityWarning] = useState(false);
+  const logoutTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
@@ -71,6 +77,65 @@ export default function Home() {
     temFerias: false, educadoresFerias: ''
   });
 
+  // --- LOGOUT E LIMPEZA ---
+  const handleLogout = useCallback(async () => {
+    // Limpa timers ao sair
+    if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
+    if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+    
+    await supabase.auth.signOut();
+    setView('form');
+    setShowInactivityWarning(false);
+  }, []);
+
+  // --- CONTROLE DE INATIVIDADE ---
+  const resetInactivityTimer = useCallback(() => {
+    if (!session) return;
+
+    // Limpa timers antigos
+    if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
+    if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+
+    // Esconde o aviso se o usuário interagiu
+    setShowInactivityWarning(false);
+
+    // Timer do Aviso (4m 30s)
+    warningTimerRef.current = setTimeout(() => {
+        setShowInactivityWarning(true);
+    }, TEMPO_AVISO);
+
+    // Timer do Logout (5m)
+    logoutTimerRef.current = setTimeout(() => {
+        handleLogout();
+        alert("Sessão expirada por inatividade. Faça login novamente.");
+    }, TEMPO_INATIVIDADE);
+  }, [session, handleLogout]);
+
+  useEffect(() => {
+    if (session) {
+        // Eventos que consideram o usuário "ativo"
+        const events = ['mousedown', 'keydown', 'scroll', 'touchstart', 'mousemove'];
+        
+        // Inicia o timer
+        resetInactivityTimer();
+
+        // Adiciona ouvintes
+        events.forEach(event => {
+            window.addEventListener(event, resetInactivityTimer);
+        });
+
+        // Limpeza ao desmontar ou deslogar
+        return () => {
+            events.forEach(event => {
+                window.removeEventListener(event, resetInactivityTimer);
+            });
+            if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
+            if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+        };
+    }
+  }, [session, resetInactivityTimer]);
+
+
   useEffect(() => {
     const checkSession = async () => {
         const { data } = await supabase.auth.getSession();
@@ -88,8 +153,6 @@ export default function Home() {
     setLoading(false);
     if (error) alert("Erro: " + error.message);
   };
-
-  const handleLogout = async () => { await supabase.auth.signOut(); setView('form'); };
 
   const handleRegisterUser = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true);
@@ -130,7 +193,6 @@ export default function Home() {
         texto += `\n\n*🚨 SAÍDA EXTERNA*\n👤 Adolescente: ${dados.saidaAdolescente}\n👮 Educador: ${dados.saidaEducador}\n⏰ Horário: ${dados.saidaHorario}`; 
     }
 
-    // LISTA COMPLETA DE MATERIAIS
     texto += `\n\n*🛡️ MATERIAIS*`;
     texto += `\nTonfas: ${dados.tonfas} | Algemas: ${dados.algemas}`;
     texto += `\nCelular: ${dados.celular} | Rádio HT: ${dados.radioHT}`;
@@ -139,13 +201,10 @@ export default function Home() {
     texto += `\nEscudos: ${dados.escudos} | Lanternas: ${dados.lanternas}`;
     texto += `\nRádio Celular: ${dados.radioCelular}`;
 
-    // LISTA COMPLETA DE ALOJAMENTOS
     texto += `\n\n*🔢 ADOLESCENTES*`;
     ['01', '02', '03', '04', '05', '06', '07', '08'].forEach(num => {
         const al = dados.alojamentos[num];
-        if (al) {
-            texto += `\nAL-${num}: ${al.qtd} ${al.nomes ? `(${al.nomes})` : ''}`;
-        }
+        if (al) texto += `\nAL-${num}: ${al.qtd} ${al.nomes ? `(${al.nomes})` : ''}`;
     });
 
     texto += `\n\n*RESUMO DO PLANTÃO*\n📝 ${dados.resumoPlantao}`;
@@ -154,7 +213,6 @@ export default function Home() {
     return texto;
   };
 
-  // --- PDF ---
   const gerarPDF = async (dataToPrint?: RelatorioData) => {
     const dados = dataToPrint || formData;
     try {
@@ -235,7 +293,6 @@ export default function Home() {
     } catch { alert("Erro ao gerar PDF."); }
   };
 
-  // --- WORD ---
   const gerarWord = async (dataToPrint?: RelatorioData) => {
     const dados = dataToPrint || formData;
     try {
@@ -315,7 +372,6 @@ export default function Home() {
     } catch { alert("Erro ao criar o arquivo do Word."); }
   };
 
-  // --- DADOS ---
   const fetchHistory = async () => {
     setLoading(true);
     const { data } = await supabase.from('relatorios').select('*').order('created_at', { ascending: false });
@@ -396,6 +452,24 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-100 font-sans pb-10">
+      
+      {/* MODAL DE AVISO DE INATIVIDADE */}
+      {showInactivityWarning && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center px-4">
+            <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-sm w-full text-center border-2 border-red-500 animate-pulse">
+                <div className="text-4xl mb-4">⏳</div>
+                <h3 className="text-xl font-bold text-red-600 mb-2">Sessão Expirando!</h3>
+                <p className="text-gray-700 mb-6">Você será desconectado em 30 segundos por inatividade.</p>
+                <button 
+                    onClick={() => { setShowInactivityWarning(false); }} 
+                    className="bg-blue-600 text-white font-bold py-3 px-6 rounded-xl w-full hover:bg-blue-700"
+                >
+                    Continuar Logado
+                </button>
+            </div>
+        </div>
+      )}
+
       {/* HEADER */}
       <div className="bg-blue-900 text-white p-4 sticky top-0 z-50 shadow-md flex justify-between items-center flex-wrap gap-2">
         <h1 className="font-bold text-sm md:text-lg flex items-center gap-2"><span>🛡️</span> CSIPRC Segurança</h1>
@@ -555,6 +629,7 @@ export default function Home() {
                     <div><label className="text-xs font-bold text-gray-500 block mb-1">SUPERVISOR</label><input placeholder="Nome" name="supervisor" value={formData.supervisor} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 font-semibold text-gray-900" /></div>
                     <div><label className="text-xs font-bold text-gray-500 block mb-1">EDUCADORES</label><input placeholder="Nomes" name="educadores" value={formData.educadores} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 text-gray-900" /></div>
                     
+                    {/* CAMPOS FOLGA E FÉRIAS */}
                     <div className="col-span-full border-t border-gray-100 pt-3 mt-1 grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="bg-gray-50 p-2 rounded border border-gray-200">
                             <div className="flex items-center gap-2 mb-2">
@@ -585,6 +660,7 @@ export default function Home() {
             
             <section><h3 className="flex items-center text-blue-900 font-bold border-b-2 border-blue-200 mb-4 pb-2 mt-8 text-xl"><span className="mr-2">🔢</span> Adolescentes</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{['01', '02', '03', '04', '05', '06', '07', '08'].map((num) => (<div key={num} className="bg-gray-50 p-3 rounded border border-gray-200 flex gap-2 items-center"><span className="font-bold text-blue-800 text-sm w-12">AL-{num}</span><input type="number" placeholder="Qtd" value={formData.alojamentos[num].qtd} onChange={(e) => handleAlojamentoChange(num, 'qtd', e.target.value)} className="w-16 border p-2 text-center rounded font-bold text-gray-900" /><input type="text" placeholder="Nomes..." value={formData.alojamentos[num].nomes} onChange={(e) => handleAlojamentoChange(num, 'nomes', e.target.value)} className="flex-1 border p-2 rounded text-sm text-gray-900" /></div>))}</div></section>
             
+            {/* SAÍDA EXTERNA */}
             <section className="mt-8 bg-red-50 p-4 rounded-lg border border-red-200">
                 <div className="flex items-center gap-3 mb-4">
                     <input type="checkbox" id="temSaida" name="temSaida" checked={formData.temSaida} onChange={handleChange} className="w-6 h-6 text-red-600 rounded focus:ring-red-500 border-gray-300" />
