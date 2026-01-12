@@ -186,8 +186,6 @@ export default function Home() {
       contentArray.push({ columns: [{ width: '*', text: [{ text: 'APOIO: ', bold: true }, dados.apoio] }], margin: [0, 5] }, { columns: [{ width: '*', text: [{ text: 'PLANTÃO: ', bold: true }, dados.plantao] }], margin: [0, 0, 0, 20] },);
       if (dados.temSaida) { contentArray.push({ text: 'SAÍDA EXTERNA', style: 'sectionHeader', alignment: 'center', color: 'red' }, { columns: [{ width: '*', text: [{ text: 'Adolescente: ', bold: true }, dados.saidaAdolescente] }, { width: '*', text: [{ text: 'Horário: ', bold: true }, dados.saidaHorario] }], margin: [0, 5] }, { text: [{ text: 'Educador Responsável: ', bold: true }, dados.saidaEducador], margin: [0, 0, 0, 10] }); }
       
-      // --- CORREÇÃO DO ERRO DE "UNDEFINED CELL" ---
-      // Usamos "|| ''" para garantir que nenhum valor seja null
       contentArray.push(
           { text: 'MATERIAIS DE SEGURANÇA', style: 'sectionHeader', alignment: 'center' }, 
           { 
@@ -328,45 +326,45 @@ export default function Home() {
         </div>
       )}
 
-      {/* HEADER OTIMIZADO PARA MOBILE */}
-      <div className="bg-blue-900 text-white p-3 sticky top-0 z-50 shadow-md flex justify-between items-center">
-        {/* Lado Esquerdo: Título (com truncate para não quebrar) */}
+      {/* HEADER OTIMIZADO PARA MOBILE E ACESSIBILIDADE (ICONE + TEXTO) */}
+      <div className="bg-blue-900 text-white p-3 sticky top-0 z-50 shadow-md flex flex-wrap justify-between items-center gap-2">
+        {/* Lado Esquerdo: Título */}
         <div className="flex items-center gap-2 overflow-hidden mr-2">
             <span className="text-xl">🛡️</span>
             <h1 className="font-bold text-sm sm:text-lg truncate">CSIPRC Segurança</h1>
         </div>
 
-        {/* Lado Direito: Botões (Flex Row, sem quebra) */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        {/* Lado Direito: Botões (Com texto visível e quebra de linha permitida) */}
+        <div className="flex items-center gap-2 flex-wrap justify-end flex-1">
             {view === 'form' && (
               <>
-                <button onClick={() => gerarWord(formData)} className="bg-white text-blue-900 p-2 rounded shadow-sm" title="Baixar Word">
-                    📄<span className="hidden sm:inline ml-1 font-bold">Word</span>
+                <button onClick={() => gerarWord(formData)} className="bg-white text-blue-900 p-2 rounded shadow-sm flex items-center" title="Baixar Word">
+                    📄 <span className="ml-1 font-bold text-xs sm:text-sm">Word</span>
                 </button>
-                <button onClick={() => gerarPDF(formData)} className="bg-red-600 text-white p-2 rounded shadow-sm" title="Baixar PDF">
-                    📄<span className="hidden sm:inline ml-1 font-bold">PDF</span>
+                <button onClick={() => gerarPDF(formData)} className="bg-red-600 text-white p-2 rounded shadow-sm flex items-center" title="Baixar PDF">
+                    📄 <span className="ml-1 font-bold text-xs sm:text-sm">PDF</span>
                 </button>
-                <button onClick={() => { fetchHistory(); setView('history'); setSelectedReport(null); }} className="bg-blue-700 p-2 rounded hover:bg-blue-600" title="Histórico">
-                    📜<span className="hidden sm:inline ml-1">Histórico</span>
+                <button onClick={() => { fetchHistory(); setView('history'); setSelectedReport(null); }} className="bg-blue-700 p-2 rounded hover:bg-blue-600 flex items-center" title="Histórico">
+                    📜 <span className="ml-1 text-xs sm:text-sm">Histórico</span>
                 </button>
               </>
             )}
             
             {(view === 'history' || view === 'admin') && (
-                <button onClick={() => setView('form')} className="bg-yellow-500 text-blue-900 p-2 rounded font-bold" title="Voltar">
-                    ⬅ <span className="hidden sm:inline">Voltar</span>
+                <button onClick={() => setView('form')} className="bg-yellow-500 text-blue-900 p-2 rounded font-bold flex items-center" title="Voltar">
+                    ⬅ <span className="ml-1 text-xs sm:text-sm">Voltar</span>
                 </button>
             )}
             
             {isUserAdmin && view !== 'admin' && (
-                <button onClick={() => setView('admin')} className="bg-purple-600 text-white p-2 rounded font-bold hover:bg-purple-700" title="Admin">
-                    ⚙️ <span className="hidden sm:inline">Admin</span>
+                <button onClick={() => setView('admin')} className="bg-purple-600 text-white p-2 rounded font-bold hover:bg-purple-700 flex items-center" title="Admin">
+                    ⚙️ <span className="ml-1 text-xs sm:text-sm">Admin</span>
                 </button>
             )}
             
             {/* BOTÃO SAIR */}
-            <button onClick={handleLogout} className="bg-red-600 text-white p-2 rounded font-bold border border-red-500 ml-1" title="Sair">
-                🚪<span className="hidden sm:inline ml-1">Sair</span>
+            <button onClick={handleLogout} className="bg-red-600 text-white p-2 rounded font-bold border border-red-500 ml-1 flex items-center" title="Sair">
+                🚪 <span className="ml-1 text-xs sm:text-sm">Sair</span>
             </button>
         </div>
       </div>
@@ -465,7 +463,7 @@ export default function Home() {
                          </div>
                       </div>
                       
-                      {/* BOTÕES DE AÇÃO NO HISTÓRICO - CORRIGIDO PARA MOBILE */}
+                      {/* BOTÕES DE AÇÃO NO HISTÓRICO - GRID PARA MOBILE */}
                       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 pb-8">
                             <button onClick={() => handleResendWhatsApp(selectedReport)} className="w-full bg-green-600 text-white px-4 py-3 rounded-lg font-bold shadow hover:bg-green-700 flex items-center justify-center gap-2">📱 Enviar WhatsApp</button>
                             <button onClick={() => gerarPDF(selectedReport)} className="w-full bg-red-600 text-white px-4 py-3 rounded-lg font-bold shadow hover:bg-red-700 flex items-center justify-center gap-2">📄 Baixar PDF</button>
