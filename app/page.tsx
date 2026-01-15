@@ -46,6 +46,8 @@ type RelatorioData = {
   portaria: string;
   cozinha: string;
   servicosGerais: string;
+  temApoioSemiliberdade: boolean;
+  educadoresApoioSemiliberdade: string;
 };
 
 export default function Home() {
@@ -68,6 +70,10 @@ export default function Home() {
   const logoutTimerRef = useRef<NodeJS.Timeout | null>(null);
   const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Controle do Microfone
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
   // Estado do Formulário
   const [formData, setFormData] = useState<RelatorioData>({
     data: new Date().toLocaleDateString('pt-BR'),
@@ -84,8 +90,66 @@ export default function Home() {
     resumoPlantao: '', assinaturaDiurno: '', assinaturaNoturno: '',
     temSaida: false, saidaAdolescente: '', saidaEducador: '', saidaHorario: '',
     temFolga: false, educadoresFolga: '',
-    temFerias: false, educadoresFerias: ''
+    temFerias: false, educadoresFerias: '',
+    temApoioSemiliberdade: false, educadoresApoioSemiliberdade: ''
   });
+
+  // --- LÓGICA DE MICROFONE ---
+  const toggleRecording = () => {
+    if (isRecording) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setIsRecording(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Seu navegador não suporta reconhecimento de voz. Tente usar o Google Chrome.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'pt-BR';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onresult = (event: any) => {
+      let interimTranscript = '';
+      let finalTranscript = '';
+
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
+      }
+
+      if (finalTranscript) {
+        setFormData(prev => ({
+          ...prev,
+          resumoPlantao: (prev.resumoPlantao + ' ' + finalTranscript).trim()
+        }));
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Erro no reconhecimento de voz:", event.error);
+      setIsRecording(false);
+    };
+
+    recognition.onend = () => {
+      // Se parou sozinho mas o estado ainda é gravando (ex: silêncio), reinicia ou para.
+      // Aqui vamos apenas parar para simplificar.
+      setIsRecording(false);
+    };
+
+    recognition.start();
+    recognitionRef.current = recognition;
+    setIsRecording(true);
+  };
 
   // --- LÓGICA DE INATIVIDADE E LOGOUT ---
   const handleLogout = useCallback(async () => {
@@ -176,12 +240,12 @@ export default function Home() {
   const gerarTextoWhatsApp = (dados: RelatorioData) => {
     let texto = `*RELATÓRIO EQUIPE DE SEGURANÇA - CSIPRC*\n📅 Data: ${dados.data}\n`;
     
-    // NOME CORRIGIDO AQUI
     texto += `\n*👮 COORDENAÇÃO*\nCoordenador de Segurança: ${dados.coordenador}\nSupervisor: ${dados.supervisor}`;
     
     texto += `\n\n*👥 EDUCADORES*\n${dados.educadores}`;
     if (dados.temFolga) texto += `\n🏖️ Folga: ${dados.educadoresFolga}`;
     if (dados.temFerias) texto += `\n✈️ Férias: ${dados.educadoresFerias}`;
+    if (dados.temApoioSemiliberdade) texto += `\n🔄 Apoio Semiliberdade: ${dados.educadoresApoioSemiliberdade}`;
 
     texto += `\n\n*🤝 EQUIPE DE APOIO*`;
     texto += `\nPortaria: ${dados.portaria || '-'}`;
@@ -223,7 +287,6 @@ export default function Home() {
           logoBase64 ? { image: logoBase64, width: 150, alignment: 'center', margin: [0, 0, 0, 10] } : {},
           { text: 'RELATÓRIO EQUIPE DE SEGURANÇA – CSIPRC', style: 'header', alignment: 'center' },
           { text: `Data: ${dados.data}`, style: 'subheader', alignment: 'center', margin: [0, 0, 0, 20] },
-          // NOME CORRIGIDO AQUI
           { columns: [{ width: '*', text: [{ text: 'COORDENADOR DE SEGURANÇA: ', bold: true }, dados.coordenador] }], margin: [0, 5] },
           { columns: [{ width: '*', text: [{ text: 'SUPERVISOR: ', bold: true }, dados.supervisor] }], margin: [0, 5] },
           { columns: [{ width: '*', text: [{ text: 'EDUCADORES: ', bold: true }, dados.educadores] }], margin: [0, 5] },
@@ -231,6 +294,7 @@ export default function Home() {
 
       if (dados.temFolga) contentArray.push({ columns: [{ width: '*', text: [{ text: 'FOLGA: ', bold: true }, dados.educadoresFolga] }], margin: [0, 5] });
       if (dados.temFerias) contentArray.push({ columns: [{ width: '*', text: [{ text: 'FÉRIAS: ', bold: true }, dados.educadoresFerias] }], margin: [0, 5] });
+      if (dados.temApoioSemiliberdade) contentArray.push({ columns: [{ width: '*', text: [{ text: 'APOIO SEMILIBERDADE: ', bold: true }, dados.educadoresApoioSemiliberdade] }], margin: [0, 5] });
 
       contentArray.push(
           { text: 'EQUIPE DE APOIO', style: 'sectionHeader', alignment: 'center' },
@@ -307,7 +371,6 @@ export default function Home() {
               new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: "RELATÓRIO EQUIPE DE SEGURANÇA – CSIPRC", bold: true, size: 28 }) ] }),
               new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: `Data: ${dados.data}`, bold: true, size: 24 }) ] }),
               new Paragraph({ text: "" }),
-              // NOME CORRIGIDO AQUI
               new Paragraph({ children: [new TextRun({ text: "COORDENADOR DE SEGURANÇA: ", bold: true }), new TextRun(dados.coordenador)] }),
               new Paragraph({ children: [new TextRun({ text: "SUPERVISOR: ", bold: true }), new TextRun(dados.supervisor)] }),
               new Paragraph({ children: [new TextRun({ text: "EDUCADORES: ", bold: true }), new TextRun(dados.educadores)] }),
@@ -315,6 +378,7 @@ export default function Home() {
 
         if (dados.temFolga) childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "FOLGA: ", bold: true }), new TextRun(dados.educadoresFolga)] }));
         if (dados.temFerias) childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "FÉRIAS: ", bold: true }), new TextRun(dados.educadoresFerias)] }));
+        if (dados.temApoioSemiliberdade) childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "APOIO SEMILIBERDADE: ", bold: true }), new TextRun(dados.educadoresApoioSemiliberdade)] }));
 
         childrenParagraphs.push(
               new Paragraph({ text: "" }),
@@ -396,7 +460,8 @@ export default function Home() {
         resumoPlantao: item.resumo_plantao, assinaturaDiurno: item.plantao_diurno, assinaturaNoturno: item.plantao_noturno, alojamentos: item.alojamentos || {},
         temSaida: item.tem_saida || false, saidaAdolescente: item.saida_adolescente || '', saidaEducador: item.saida_educador || '', saidaHorario: item.saida_horario || '',
         temFolga: item.tem_folga || false, educadoresFolga: item.educadores_folga || '',
-        temFerias: item.tem_ferias || false, educadoresFerias: item.educadores_ferias || ''
+        temFerias: item.tem_ferias || false, educadoresFerias: item.educadores_ferias || '',
+        temApoioSemiliberdade: item.tem_apoio_semiliberdade || false, educadoresApoioSemiliberdade: item.educadores_apoio_semiliberdade || ''
       })));
     }
   };
@@ -413,7 +478,7 @@ export default function Home() {
   const salvarNoSupabase = async () => {
     return await supabase.from('relatorios').insert([{
       data_plantao: formData.data, educadores: formData.educadores, supervisor: formData.supervisor, 
-      coordenador: formData.coordenador, // Novo
+      coordenador: formData.coordenador, 
       apoio_geral: formData.apoio,
       equipe_cozinha: formData.cozinha,
       equipe_servicos_gerais: formData.servicosGerais,
@@ -423,7 +488,8 @@ export default function Home() {
       alojamentos: formData.alojamentos, resumo_plantao: formData.resumoPlantao, plantao_diurno: formData.assinaturaDiurno, plantao_noturno: formData.assinaturaNoturno,
       tem_saida: formData.temSaida, saida_adolescente: formData.saidaAdolescente, saida_educador: formData.saidaEducador, saida_horario: formData.saidaHorario,
       tem_folga: formData.temFolga, educadores_folga: formData.educadoresFolga,
-      tem_ferias: formData.temFerias, educadores_ferias: formData.educadoresFerias
+      tem_ferias: formData.temFerias, educadores_ferias: formData.educadoresFerias,
+      tem_apoio_semiliberdade: formData.temApoioSemiliberdade, educadores_apoio_semiliberdade: formData.educadoresApoioSemiliberdade
     }]);
   };
 
@@ -563,6 +629,7 @@ export default function Home() {
                                 <p className="col-span-full"><span className="font-bold">EDUCADORES:</span> {selectedReport.educadores}</p>
                                 {selectedReport.temFolga && <p className="col-span-full"><span className="font-bold text-gray-700">FOLGA:</span> {selectedReport.educadoresFolga}</p>}
                                 {selectedReport.temFerias && <p className="col-span-full"><span className="font-bold text-gray-700">FÉRIAS:</span> {selectedReport.educadoresFerias}</p>}
+                                {selectedReport.temApoioSemiliberdade && <p className="col-span-full"><span className="font-bold text-gray-700">APOIO SEMILIBERDADE:</span> {selectedReport.educadoresApoioSemiliberdade}</p>}
                                 
                                 <div className="col-span-full mt-2 border-t pt-2">
                                     <p className="font-bold mb-1">EQUIPE DE APOIO:</p>
@@ -683,7 +750,7 @@ export default function Home() {
                     <div><label className="text-xs font-bold text-gray-500 block mb-1">SUPERVISOR</label><input placeholder="Nome" name="supervisor" value={formData.supervisor} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 font-semibold text-gray-900" /></div>
                     <div className="col-span-full"><label className="text-xs font-bold text-gray-500 block mb-1">EDUCADORES</label><input placeholder="Nomes dos educadores..." name="educadores" value={formData.educadores} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 text-gray-900" /></div>
                     
-                    <div className="col-span-full border-t border-gray-100 pt-3 mt-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="col-span-full border-t border-gray-100 pt-3 mt-1 grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="bg-gray-50 p-2 rounded border border-gray-200">
                             <div className="flex items-center gap-2 mb-2">
                                 <input type="checkbox" id="temFolga" name="temFolga" checked={formData.temFolga} onChange={handleChange} className="w-4 h-4 text-blue-600" />
@@ -702,6 +769,15 @@ export default function Home() {
                                 <input placeholder="Nome de quem está de férias" name="educadoresFerias" value={formData.educadoresFerias} onChange={handleChange} className="w-full border p-2 rounded text-sm text-gray-900" />
                             )}
                         </div>
+                        <div className="bg-gray-50 p-2 rounded border border-gray-200">
+                            <div className="flex items-center gap-2 mb-2">
+                                <input type="checkbox" id="temApoioSemiliberdade" name="temApoioSemiliberdade" checked={formData.temApoioSemiliberdade} onChange={handleChange} className="w-4 h-4 text-blue-600" />
+                                <label htmlFor="temApoioSemiliberdade" className="text-xs font-bold text-gray-600 cursor-pointer uppercase">Apoio Semiliberdade?</label>
+                            </div>
+                            {formData.temApoioSemiliberdade && (
+                                <input placeholder="Nome do educador" name="educadoresApoioSemiliberdade" value={formData.educadoresApoioSemiliberdade} onChange={handleChange} className="w-full border p-2 rounded text-sm text-gray-900" />
+                            )}
+                        </div>
                     </div>
 
                     <div><label className="text-xs font-bold text-gray-500 block mb-1">PORTARIA</label><input placeholder="Nome" name="portaria" value={formData.portaria} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 text-gray-900" /></div>
@@ -716,7 +792,27 @@ export default function Home() {
             <section><h3 className="flex items-center text-blue-900 font-bold border-b-2 border-blue-200 mb-4 pb-2 mt-8 text-xl"><span className="mr-2">🛡️</span> Materiais (Qtd)</h3><div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">{['tonfas', 'algemas', 'chavesAcesso', 'chavesAlgemas', 'escudos', 'lanternas', 'celular', 'radioCelular', 'radioHT', 'cadeados', 'pendrives'].map((item) => (<div key={item} className="flex flex-col"><label className="text-gray-600 text-xs capitalize mb-1">{item.replace(/([A-Z])/g, ' $1')}</label><input type="number" name={item} onChange={handleChange} value={formData[item as keyof RelatorioData] as string} className="w-full border p-2 rounded bg-white text-gray-900" placeholder="0"/></div>))}</div></section>
             <section><h3 className="flex items-center text-blue-900 font-bold border-b-2 border-blue-200 mb-4 pb-2 mt-8 text-xl"><span className="mr-2">🔢</span> Adolescentes</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{['01', '02', '03', '04', '05', '06', '07', '08'].map((num) => (<div key={num} className="bg-gray-50 p-3 rounded border border-gray-200 flex gap-2 items-center"><span className="font-bold text-blue-800 text-sm w-12">AL-{num}</span><input type="number" placeholder="Qtd" value={formData.alojamentos[num].qtd} onChange={(e) => handleAlojamentoChange(num, 'qtd', e.target.value)} className="w-16 border p-2 text-center rounded font-bold text-gray-900" /><input type="text" placeholder="Nomes..." value={formData.alojamentos[num].nomes} onChange={(e) => handleAlojamentoChange(num, 'nomes', e.target.value)} className="flex-1 border p-2 rounded text-sm text-gray-900" /></div>))}</div></section>
             <section className="mt-8 bg-red-50 p-4 rounded-lg border border-red-200"><div className="flex items-center gap-3 mb-4"><input type="checkbox" id="temSaida" name="temSaida" checked={formData.temSaida} onChange={handleChange} className="w-6 h-6 text-red-600 rounded focus:ring-red-500 border-gray-300" /><label htmlFor="temSaida" className="text-lg font-bold text-red-900 cursor-pointer">Houve Saída Externa?</label></div>{formData.temSaida && (<div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-in-down"><div><label className="text-xs font-bold text-red-800 block mb-1">Nome do Adolescente</label><input placeholder="Ex: João Silva" name="saidaAdolescente" value={formData.saidaAdolescente} onChange={handleChange} className="w-full border border-red-300 p-2 rounded bg-white text-gray-900" /></div><div><label className="text-xs font-bold text-red-800 block mb-1">Educador Responsável</label><input placeholder="Ex: Maria" name="saidaEducador" value={formData.saidaEducador} onChange={handleChange} className="w-full border border-red-300 p-2 rounded bg-white text-gray-900" /></div><div><label className="text-xs font-bold text-red-800 block mb-1">Horário</label><input placeholder="Ex: 14:00" name="saidaHorario" value={formData.saidaHorario} onChange={handleChange} className="w-full border border-red-300 p-2 rounded bg-white text-gray-900" /></div></div>)}</section>
-            <section><h3 className="flex items-center text-blue-900 font-bold border-b-2 border-blue-200 mb-4 pb-2 mt-8 text-xl"><span className="mr-2">📝</span> Resumo</h3><textarea name="resumoPlantao" value={formData.resumoPlantao} placeholder="Fale aqui..." onChange={handleChange} className="w-full border p-3 rounded h-40 mb-6 outline-none text-lg text-gray-900"></textarea><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Supervisor Diurno</label><input placeholder="Assinatura..." name="assinaturaDiurno" value={formData.assinaturaDiurno} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 text-gray-900" /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Supervisor Noturno</label><input placeholder="Assinatura..." name="assinaturaNoturno" value={formData.assinaturaNoturno} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 text-gray-900" /></div></div></section>
+            
+            {/* MICROFONE ADICIONADO AQUI */}
+            <section className="relative">
+                <div className="flex justify-between items-center border-b-2 border-blue-200 mb-4 pb-2">
+                    <h3 className="flex items-center text-blue-900 font-bold text-xl"><span className="mr-2">📝</span> Resumo</h3>
+                    <button 
+                        type="button" 
+                        onClick={toggleRecording} 
+                        className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold shadow transition ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-blue-100 text-blue-900 hover:bg-blue-200'}`}
+                    >
+                        {isRecording ? (
+                            <><span>⏹️</span> Gravando... (Toque para parar)</>
+                        ) : (
+                            <><span>🎙️</span> Usar Microfone</>
+                        )}
+                    </button>
+                </div>
+                <textarea name="resumoPlantao" value={formData.resumoPlantao} placeholder="Fale aqui..." onChange={handleChange} className="w-full border p-3 rounded h-40 mb-6 outline-none text-lg text-gray-900"></textarea>
+            </section>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Supervisor Diurno</label><input placeholder="Assinatura..." name="assinaturaDiurno" value={formData.assinaturaDiurno} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 text-gray-900" /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Supervisor Noturno</label><input placeholder="Assinatura..." name="assinaturaNoturno" value={formData.assinaturaNoturno} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 text-gray-900" /></div></div>
             <div className="pt-6 pb-8 grid grid-cols-1 md:grid-cols-2 gap-4"><div className="flex gap-2"><button onClick={() => gerarWord(formData)} className="flex-1 bg-blue-600 text-white font-bold py-4 rounded-xl shadow hover:bg-blue-700 transition">📄 Word</button><button onClick={() => gerarPDF(formData)} className="flex-1 bg-red-600 text-white font-bold py-4 rounded-xl shadow hover:bg-red-700 transition">📄 PDF</button></div><div className="flex gap-2"><button onClick={handleSalvarApenas} className="flex-1 bg-gray-700 text-white font-bold py-4 rounded-xl shadow hover:bg-gray-800 transition flex items-center justify-center gap-2">💾 Salvar</button><button onClick={handleSaveAndSend} className="flex-1 bg-green-600 text-white font-bold py-4 rounded-xl shadow hover:bg-green-700 transition flex items-center justify-center gap-2">📱 Zap + Salvar</button></div></div>
             </form>
         )}
