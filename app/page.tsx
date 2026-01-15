@@ -8,7 +8,7 @@ import {
 } from 'docx';
 import { saveAs } from 'file-saver';
 
-// --- CORREÇÃO DO ERRO VERCEL ---
+// --- CORREÇÃO DO ERRO VERCEL (PDFMAKE) ---
 // @ts-ignore
 import pdfMake from "pdfmake/build/pdfmake";
 // @ts-ignore
@@ -24,13 +24,13 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// --- CONFIGURAÇÕES ---
+// --- CONFIGURAÇÕES GERAIS ---
 const ADMIN_EMAIL = 'admin@csiprc.com'; 
 const SENHA_EXCLUSAO = '1234';
 const TEMPO_INATIVIDADE = 5 * 60 * 1000; 
 const TEMPO_AVISO = 4.5 * 60 * 1000;
 
-// --- TIPAGEM ---
+// --- TIPAGEM DE DADOS ---
 type AlojamentoDados = { qtd: string; nomes: string; };
 type RelatorioData = {
   id?: number; created_at?: string; data: string; supervisor: string; educadores: string; apoio: string; plantao: string;
@@ -44,23 +44,26 @@ type RelatorioData = {
 };
 
 export default function Home() {
+  // Estados de Autenticação
   const [session, setSession] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
   
+  // Estados da Aplicação
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<'form' | 'history' | 'admin'>('form');
   const [historico, setHistorico] = useState<RelatorioData[]>([]);
   const [selectedReport, setSelectedReport] = useState<RelatorioData | null>(null);
   
+  // Controle de Inatividade
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
   const logoutTimerRef = useRef<NodeJS.Timeout | null>(null);
   const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
-  
-  const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserPassword, setNewUserPassword] = useState('');
 
+  // Estado do Formulário
   const [formData, setFormData] = useState<RelatorioData>({
     data: new Date().toLocaleDateString('pt-BR'),
     supervisor: '', educadores: '', apoio: '', plantao: '',
@@ -76,6 +79,7 @@ export default function Home() {
     temFerias: false, educadoresFerias: ''
   });
 
+  // --- LÓGICA DE INATIVIDADE E LOGOUT ---
   const handleLogout = useCallback(async () => {
     if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
     if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
@@ -117,6 +121,7 @@ export default function Home() {
     return () => { authListener.subscription.unsubscribe(); };
   }, []);
 
+  // --- HANDLERS ---
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
@@ -150,26 +155,42 @@ export default function Home() {
     });
   };
 
+  // --- GERADOR DE TEXTO WHATSAPP (COMPLETO) ---
   const gerarTextoWhatsApp = (dados: RelatorioData) => {
-    let texto = `*RELATÓRIO EQUIPE DE SEGURANÇA - CSIPRC*\n📅 Data: ${dados.data}\n\n*EQUIPE*\n👮 Supervisor: ${dados.supervisor}\n👥 Educadores: ${dados.educadores}`;
+    let texto = `*RELATÓRIO EQUIPE DE SEGURANÇA - CSIPRC*\n📅 Data: ${dados.data}\n\n*👥 EQUIPE*\n👮 Supervisor: ${dados.supervisor}\n👥 Educadores: ${dados.educadores}`;
+    
     if (dados.temFolga) texto += `\n🏖️ Folga: ${dados.educadoresFolga}`;
     if (dados.temFerias) texto += `\n✈️ Férias: ${dados.educadoresFerias}`;
+
     texto += `\n🤝 Apoio: ${dados.apoio}\n🕒 Plantão: ${dados.plantao}`;
-    if (dados.temSaida) { texto += `\n\n*🚨 SAÍDA EXTERNA*\n👤 Adolescente: ${dados.saidaAdolescente}\n👮 Educador: ${dados.saidaEducador}\n⏰ Horário: ${dados.saidaHorario}`; }
+    
+    if (dados.temSaida) { 
+        texto += `\n\n*🚨 SAÍDA EXTERNA*\n👤 Adolescente: ${dados.saidaAdolescente}\n👮 Educador: ${dados.saidaEducador}\n⏰ Horário: ${dados.saidaHorario}`; 
+    }
+
     texto += `\n\n*🛡️ MATERIAIS*`;
-    texto += `\nTonfas: ${dados.tonfas} | Algemas: ${dados.algemas}`;
-    texto += `\nCelular: ${dados.celular} | Rádio HT: ${dados.radioHT}`;
-    texto += `\nChaves Acesso: ${dados.chavesAcesso} | Chaves Algemas: ${dados.chavesAlgemas}`;
-    texto += `\nCadeados: ${dados.cadeados} | Pendrives: ${dados.pendrives}`;
-    texto += `\nEscudos: ${dados.escudos} | Lanternas: ${dados.lanternas}`;
-    texto += `\nRádio Celular: ${dados.radioCelular}`;
+    texto += `\n🔹 Tonfas: ${dados.tonfas || '0'} | Algemas: ${dados.algemas || '0'}`;
+    texto += `\n🔹 Celular: ${dados.celular || '0'} | Rádio HT: ${dados.radioHT || '0'}`;
+    texto += `\n🔹 Chaves Acesso: ${dados.chavesAcesso || '0'} | Chaves Algema: ${dados.chavesAlgemas || '0'}`;
+    texto += `\n🔹 Cadeados: ${dados.cadeados || '0'} | Pendrives: ${dados.pendrives || '0'}`;
+    texto += `\n🔹 Escudos: ${dados.escudos || '0'} | Lanternas: ${dados.lanternas || '0'}`;
+    texto += `\n🔹 Rádio Cel: ${dados.radioCelular || '0'}`;
+
     texto += `\n\n*🔢 ADOLESCENTES*`;
-    ['01', '02', '03', '04', '05', '06', '07', '08'].forEach(num => { const al = dados.alojamentos[num]; if (al) texto += `\nAL-${num}: ${al.qtd} ${al.nomes ? `(${al.nomes})` : ''}`; });
-    texto += `\n\n*RESUMO DO PLANTÃO*\n📝 ${dados.resumoPlantao}`;
-    texto += `\n\n*ASSINATURAS*\n☀️ Diurno: ${dados.assinaturaDiurno}\n🌙 Noturno: ${dados.assinaturaNoturno}`;
+    ['01', '02', '03', '04', '05', '06', '07', '08'].forEach(num => {
+        const al = dados.alojamentos[num];
+        if (al) {
+            texto += `\n🏠 AL-${num}: ${al.qtd || '0'} ${al.nomes ? `(${al.nomes})` : ''}`;
+        }
+    });
+
+    texto += `\n\n*📝 RESUMO DO PLANTÃO*\n${dados.resumoPlantao || 'Sem observações.'}`;
+    texto += `\n\n*✍️ ASSINATURAS*\n☀️ Diurno: ${dados.assinaturaDiurno}\n🌙 Noturno: ${dados.assinaturaNoturno}`;
+
     return texto;
   };
 
+  // --- GERADOR PDF ---
   const gerarPDF = async (dataToPrint?: RelatorioData) => {
     const dados = dataToPrint || formData;
     try {
@@ -181,59 +202,154 @@ export default function Home() {
           { columns: [{ width: '*', text: [{ text: 'SUPERVISOR: ', bold: true }, dados.supervisor] }], margin: [0, 5] },
           { columns: [{ width: '*', text: [{ text: 'EDUCADORES: ', bold: true }, dados.educadores] }], margin: [0, 5] },
       ];
+
       if (dados.temFolga) { contentArray.push({ columns: [{ width: '*', text: [{ text: 'FOLGA: ', bold: true }, dados.educadoresFolga] }], margin: [0, 5] }); }
       if (dados.temFerias) { contentArray.push({ columns: [{ width: '*', text: [{ text: 'FÉRIAS: ', bold: true }, dados.educadoresFerias] }], margin: [0, 5] }); }
-      contentArray.push({ columns: [{ width: '*', text: [{ text: 'APOIO: ', bold: true }, dados.apoio] }], margin: [0, 5] }, { columns: [{ width: '*', text: [{ text: 'PLANTÃO: ', bold: true }, dados.plantao] }], margin: [0, 0, 0, 20] },);
-      if (dados.temSaida) { contentArray.push({ text: 'SAÍDA EXTERNA', style: 'sectionHeader', alignment: 'center', color: 'red' }, { columns: [{ width: '*', text: [{ text: 'Adolescente: ', bold: true }, dados.saidaAdolescente] }, { width: '*', text: [{ text: 'Horário: ', bold: true }, dados.saidaHorario] }], margin: [0, 5] }, { text: [{ text: 'Educador Responsável: ', bold: true }, dados.saidaEducador], margin: [0, 0, 0, 10] }); }
-      
+
       contentArray.push(
-          { text: 'MATERIAIS DE SEGURANÇA', style: 'sectionHeader', alignment: 'center' }, 
-          { 
-              style: 'tableExample', 
-              table: { 
-                  widths: ['*', 'auto', '*', 'auto'], 
-                  body: [
-                      [{ text: 'ITEM', bold: true, fillColor: '#eeeeee' }, { text: 'QTD', bold: true, fillColor: '#eeeeee' }, { text: 'ITEM', bold: true, fillColor: '#eeeeee' }, { text: 'QTD', bold: true, fillColor: '#eeeeee' }], 
-                      ['Tonfas', dados.tonfas || '0', 'Celular + Carregador', dados.celular || '0'], 
-                      ['Algemas', dados.algemas || '0', 'Rádio Celular', dados.radioCelular || '0'], 
-                      ['Chaves Acesso', dados.chavesAcesso || '0', 'Rádio HT', dados.radioHT || '0'], 
-                      ['Chaves Algemas', dados.chavesAlgemas || '0', 'Cadeados', dados.cadeados || '0'], 
-                      ['Escudos', dados.escudos || '0', 'Pendrives', dados.pendrives || '0'], 
-                      ['Lanternas', dados.lanternas || '0', '', ''],
-                  ] 
-              }, 
-              layout: 'lightHorizontalLines', 
-              margin: [0, 5, 0, 20] 
-          }, 
+          { columns: [{ width: '*', text: [{ text: 'APOIO: ', bold: true }, dados.apoio] }], margin: [0, 5] },
+          { columns: [{ width: '*', text: [{ text: 'PLANTÃO: ', bold: true }, dados.plantao] }], margin: [0, 0, 0, 20] },
+      );
+
+      if (dados.temSaida) {
+        contentArray.push(
+            { text: 'SAÍDA EXTERNA', style: 'sectionHeader', alignment: 'center', color: 'red' },
+            { 
+                columns: [
+                    { width: '*', text: [{ text: 'Adolescente: ', bold: true }, dados.saidaAdolescente] },
+                    { width: '*', text: [{ text: 'Horário: ', bold: true }, dados.saidaHorario] }
+                ], margin: [0, 5]
+            },
+            { text: [{ text: 'Educador Responsável: ', bold: true }, dados.saidaEducador], margin: [0, 0, 0, 10] }
+        );
+      }
+
+      // Tabela de Materiais (COM PROTEÇÃO CONTRA NULL)
+      contentArray.push(
+          { text: 'MATERIAIS DE SEGURANÇA', style: 'sectionHeader', alignment: 'center' },
+          {
+            style: 'tableExample',
+            table: {
+              widths: ['*', 'auto', '*', 'auto'],
+              body: [
+                [{ text: 'ITEM', bold: true, fillColor: '#eeeeee' }, { text: 'QTD', bold: true, fillColor: '#eeeeee' }, { text: 'ITEM', bold: true, fillColor: '#eeeeee' }, { text: 'QTD', bold: true, fillColor: '#eeeeee' }],
+                ['Tonfas', dados.tonfas || '0', 'Celular + Carregador', dados.celular || '0'],
+                ['Algemas', dados.algemas || '0', 'Rádio Celular', dados.radioCelular || '0'],
+                ['Chaves Acesso', dados.chavesAcesso || '0', 'Rádio HT', dados.radioHT || '0'],
+                ['Chaves Algemas', dados.chavesAlgemas || '0', 'Cadeados', dados.cadeados || '0'],
+                ['Escudos', dados.escudos || '0', 'Pendrives', dados.pendrives || '0'],
+                ['Lanternas', dados.lanternas || '0', '', ''],
+              ]
+            }, layout: 'lightHorizontalLines', margin: [0, 5, 0, 20]
+          },
           { text: 'ADOLESCENTES POR ALOJAMENTO', style: 'sectionHeader', alignment: 'center' }
       );
 
-      ['01', '02', '03', '04', '05', '06', '07', '08'].forEach(num => { contentArray.push({ text: [{ text: `Alojamento ${num}: `, bold: true }, { text: `${dados.alojamentos[num].qtd} adolescentes - ` }, { text: dados.alojamentos[num].nomes, italics: true }], margin: [0, 2] }); });
-      contentArray.push({ text: 'RESUMO DO PLANTÃO', style: 'sectionHeader', alignment: 'center', margin: [0, 20, 0, 5] }, { text: dados.resumoPlantao, fontSize: 11, alignment: 'justify' }, { text: '_______________________________________________', alignment: 'center', margin: [0, 40, 0, 2] }, { text: dados.assinaturaDiurno || '(Sem nome)', bold: true, alignment: 'center' }, { text: 'Supervisor Diurno', alignment: 'center', fontSize: 10, margin: [0, 0, 0, 30] }, { text: '_______________________________________________', alignment: 'center', margin: [0, 10, 0, 2] }, { text: dados.assinaturaNoturno || '(Sem nome)', bold: true, alignment: 'center' }, { text: 'Supervisor Noturno', alignment: 'center', fontSize: 10 },);
+      ['01', '02', '03', '04', '05', '06', '07', '08'].forEach(num => {
+          contentArray.push({
+            text: [{ text: `Alojamento ${num}: `, bold: true }, { text: `${dados.alojamentos[num].qtd || '0'} adolescentes - ` }, { text: dados.alojamentos[num].nomes || '', italics: true }],
+            margin: [0, 2]
+          });
+      });
+
+      contentArray.push(
+          { text: 'RESUMO DO PLANTÃO', style: 'sectionHeader', alignment: 'center', margin: [0, 20, 0, 5] },
+          { text: dados.resumoPlantao || '', fontSize: 11, alignment: 'justify' },
+          { text: '_______________________________________________', alignment: 'center', margin: [0, 40, 0, 2] },
+          { text: dados.assinaturaDiurno || '(Sem nome)', bold: true, alignment: 'center' },
+          { text: 'Supervisor Diurno', alignment: 'center', fontSize: 10, margin: [0, 0, 0, 30] },
+          { text: '_______________________________________________', alignment: 'center', margin: [0, 10, 0, 2] },
+          { text: dados.assinaturaNoturno || '(Sem nome)', bold: true, alignment: 'center' },
+          { text: 'Supervisor Noturno', alignment: 'center', fontSize: 10 },
+      );
+
       const docDefinition: any = { pageSize: 'A4', pageMargins: [40, 40, 40, 40], content: contentArray, styles: { header: { fontSize: 18, bold: true, margin: [0, 0, 0, 5] }, subheader: { fontSize: 14, bold: true }, sectionHeader: { fontSize: 12, bold: true, decoration: 'underline', margin: [0, 10, 0, 5] }, tableExample: { margin: [0, 5, 0, 15] } } };
       pdfMake.createPdf(docDefinition).download(`Relatorio_PDF_${dados.data.replace(/\//g, '-')}.pdf`);
     } catch { alert("Erro ao gerar PDF."); }
   };
 
+  // --- GERADOR WORD ---
   const gerarWord = async (dataToPrint?: RelatorioData) => {
     const dados = dataToPrint || formData;
     try {
         const logoBuffer = await carregarImagemBuffer('/logo.png');
         const cellStyle = { borders: { top: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" }, bottom: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" }, left: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" }, right: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" } }, margins: { top: 100, bottom: 100, left: 100, right: 100 } };
-        const childrenParagraphs = [new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: "RELATÓRIO EQUIPE DE SEGURANÇA – CSIPRC", bold: true, size: 28 }) ] }), new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: `Data: ${dados.data}`, bold: true, size: 24 }) ] }), new Paragraph({ text: "" }), new Paragraph({ children: [new TextRun({ text: "SUPERVISOR: ", bold: true }), new TextRun(dados.supervisor)] }), new Paragraph({ children: [new TextRun({ text: "EDUCADORES: ", bold: true }), new TextRun(dados.educadores)] })];
-        if (dados.temFolga) { childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "FOLGA: ", bold: true }), new TextRun(dados.educadoresFolga)] })); }
-        if (dados.temFerias) { childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "FÉRIAS: ", bold: true }), new TextRun(dados.educadoresFerias)] })); }
-        childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "APOIO: ", bold: true }), new TextRun(dados.apoio)] }), new Paragraph({ children: [new TextRun({ text: "PLANTÃO: ", bold: true }), new TextRun(dados.plantao)] }), new Paragraph({ text: "" }));
-        if (dados.temSaida) { childrenParagraphs.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "SAÍDA EXTERNA", bold: true, underline: {}, color: "FF0000" })] }), new Paragraph({ text: "" }), new Paragraph({ children: [new TextRun({ text: "Adolescente: ", bold: true }), new TextRun(dados.saidaAdolescente)] }), new Paragraph({ children: [new TextRun({ text: "Educador: ", bold: true }), new TextRun(dados.saidaEducador)] }), new Paragraph({ children: [new TextRun({ text: "Horário: ", bold: true }), new TextRun(dados.saidaHorario)] }), new Paragraph({ text: "" })); }
-        childrenParagraphs.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "MATERIAIS DE SEGURANÇA", bold: true, underline: {} })] }), new Paragraph({ text: "" }), new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [new TableRow({ children: [ new TableCell({ children: [new Paragraph({ text: "ITEM", bold: true })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "QTD", bold: true })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "ITEM", bold: true })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "QTD", bold: true })], ...cellStyle }) ] }), new TableRow({ children: [ new TableCell({ children: [new Paragraph("Tonfas")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.tonfas || "0")], ...cellStyle }), new TableCell({ children: [new Paragraph("Celular + Carregador")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.celular || "0")], ...cellStyle }) ] }), new TableRow({ children: [ new TableCell({ children: [new Paragraph("Algemas")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.algemas || "0")], ...cellStyle }), new TableCell({ children: [new Paragraph("Rádio Celular")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.radioCelular || "0")], ...cellStyle }) ] }), new TableRow({ children: [ new TableCell({ children: [new Paragraph("Chaves de Acesso")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.chavesAcesso || "0")], ...cellStyle }), new TableCell({ children: [new Paragraph("Rádio HT")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.radioHT || "0")], ...cellStyle }) ] }), new TableRow({ children: [ new TableCell({ children: [new Paragraph("Chaves de Algemas")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.chavesAlgemas || "0")], ...cellStyle }), new TableCell({ children: [new Paragraph("Cadeados")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.cadeados || "0")], ...cellStyle }) ] }), new TableRow({ children: [ new TableCell({ children: [new Paragraph("Escudos")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.escudos || "0")], ...cellStyle }), new TableCell({ children: [new Paragraph("Pendrives")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.pendrives || "0")], ...cellStyle }) ] }), new TableRow({ children: [ new TableCell({ children: [new Paragraph("Lanternas")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.lanternas || "0")], ...cellStyle }), new TableCell({ children: [new Paragraph("")], ...cellStyle }), new TableCell({ children: [new Paragraph("")], ...cellStyle }) ] })] }), new Paragraph({ text: "" }), new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "ADOLESCENTES POR ALOJAMENTO", bold: true, underline: {} })] }), new Paragraph({ text: "" }));
-        ['01', '02', '03', '04', '05', '06', '07', '08'].forEach(num => { childrenParagraphs.push(new Paragraph({ children: [ new TextRun({ text: `Alojamento ${num}: `, bold: true }), new TextRun({ text: `${dados.alojamentos[num].qtd} adolescentes - ` }), new TextRun({ text: dados.alojamentos[num].nomes, italics: true }) ], spacing: { after: 120 } })); });
-        childrenParagraphs.push(new Paragraph({ text: "" }), new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "RESUMO DO PLANTÃO", bold: true, underline: {} })] }), new Paragraph({ text: "" }), new Paragraph({ children: [new TextRun(dados.resumoPlantao)] }), new Paragraph({ text: "\n\n" }), new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "_______________________________________________" })] }), new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: dados.assinaturaDiurno || "(Sem nome)", bold: true }) ] }), new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Supervisor Diurno", size: 20 })], spacing: { after: 400 } }), new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "_______________________________________________" })] }), new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: dados.assinaturaNoturno || "(Sem nome)", bold: true }) ] }), new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Supervisor Noturno", size: 20 })] }));
+        
+        const childrenParagraphs = [
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: "RELATÓRIO EQUIPE DE SEGURANÇA – CSIPRC", bold: true, size: 28 }) ] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: `Data: ${dados.data}`, bold: true, size: 24 }) ] }),
+              new Paragraph({ text: "" }),
+              new Paragraph({ children: [new TextRun({ text: "SUPERVISOR: ", bold: true }), new TextRun(dados.supervisor)] }),
+              new Paragraph({ children: [new TextRun({ text: "EDUCADORES: ", bold: true }), new TextRun(dados.educadores)] }),
+        ];
+
+        if (dados.temFolga) {
+            childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "FOLGA: ", bold: true }), new TextRun(dados.educadoresFolga)] }));
+        }
+        if (dados.temFerias) {
+            childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "FÉRIAS: ", bold: true }), new TextRun(dados.educadoresFerias)] }));
+        }
+
+        childrenParagraphs.push(
+              new Paragraph({ children: [new TextRun({ text: "APOIO: ", bold: true }), new TextRun(dados.apoio)] }),
+              new Paragraph({ children: [new TextRun({ text: "PLANTÃO: ", bold: true }), new TextRun(dados.plantao)] }),
+              new Paragraph({ text: "" }),
+        );
+
+        if (dados.temSaida) {
+            childrenParagraphs.push(
+                new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "SAÍDA EXTERNA", bold: true, underline: {}, color: "FF0000" })] }),
+                new Paragraph({ text: "" }),
+                new Paragraph({ children: [new TextRun({ text: "Adolescente: ", bold: true }), new TextRun(dados.saidaAdolescente)] }),
+                new Paragraph({ children: [new TextRun({ text: "Educador: ", bold: true }), new TextRun(dados.saidaEducador)] }),
+                new Paragraph({ children: [new TextRun({ text: "Horário: ", bold: true }), new TextRun(dados.saidaHorario)] }),
+                new Paragraph({ text: "" }),
+            );
+        }
+
+        // Tabela de Materiais (COM PROTEÇÃO CONTRA NULL)
+        childrenParagraphs.push(
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "MATERIAIS DE SEGURANÇA", bold: true, underline: {} })] }),
+              new Paragraph({ text: "" }),
+              new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [
+                  new TableRow({ children: [ new TableCell({ children: [new Paragraph({ text: "ITEM", bold: true })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "QTD", bold: true })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "ITEM", bold: true })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "QTD", bold: true })], ...cellStyle }) ] }),
+                  new TableRow({ children: [ new TableCell({ children: [new Paragraph("Tonfas")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.tonfas || "0")], ...cellStyle }), new TableCell({ children: [new Paragraph("Celular + Carregador")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.celular || "0")], ...cellStyle }) ] }),
+                  new TableRow({ children: [ new TableCell({ children: [new Paragraph("Algemas")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.algemas || "0")], ...cellStyle }), new TableCell({ children: [new Paragraph("Rádio Celular")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.radioCelular || "0")], ...cellStyle }) ] }),
+                  new TableRow({ children: [ new TableCell({ children: [new Paragraph("Chaves de Acesso")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.chavesAcesso || "0")], ...cellStyle }), new TableCell({ children: [new Paragraph("Rádio HT")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.radioHT || "0")], ...cellStyle }) ] }),
+                  new TableRow({ children: [ new TableCell({ children: [new Paragraph("Chaves de Algemas")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.chavesAlgemas || "0")], ...cellStyle }), new TableCell({ children: [new Paragraph("Cadeados")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.cadeados || "0")], ...cellStyle }) ] }),
+                  new TableRow({ children: [ new TableCell({ children: [new Paragraph("Escudos")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.escudos || "0")], ...cellStyle }), new TableCell({ children: [new Paragraph("Pendrives")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.pendrives || "0")], ...cellStyle }) ] }),
+                  new TableRow({ children: [ new TableCell({ children: [new Paragraph("Lanternas")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.lanternas || "0")], ...cellStyle }), new TableCell({ children: [new Paragraph("")], ...cellStyle }), new TableCell({ children: [new Paragraph("")], ...cellStyle }) ] })
+              ] }),
+              new Paragraph({ text: "" }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "ADOLESCENTES POR ALOJAMENTO", bold: true, underline: {} })] }),
+              new Paragraph({ text: "" })
+        );
+
+        ['01', '02', '03', '04', '05', '06', '07', '08'].forEach(num => {
+            childrenParagraphs.push(new Paragraph({ children: [ new TextRun({ text: `Alojamento ${num}: `, bold: true }), new TextRun({ text: `${dados.alojamentos[num].qtd || '0'} adolescentes - ` }), new TextRun({ text: dados.alojamentos[num].nomes || '', italics: true }) ], spacing: { after: 120 } }));
+        });
+
+        childrenParagraphs.push(
+              new Paragraph({ text: "" }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "RESUMO DO PLANTÃO", bold: true, underline: {} })] }),
+              new Paragraph({ text: "" }),
+              new Paragraph({ children: [new TextRun(dados.resumoPlantao || "")] }),
+              new Paragraph({ text: "\n\n" }), 
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "_______________________________________________" })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: dados.assinaturaDiurno || "(Sem nome)", bold: true }) ] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Supervisor Diurno", size: 20 })], spacing: { after: 400 } }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "_______________________________________________" })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: dados.assinaturaNoturno || "(Sem nome)", bold: true }) ] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Supervisor Noturno", size: 20 })] })
+        );
+
         const doc = new Document({ sections: [{ properties: {}, headers: { default: new Header({ children: [ new Paragraph({ alignment: AlignmentType.CENTER, children: [ logoBuffer ? new ImageRun({ data: new Uint8Array(logoBuffer), transformation: { width: 475, height: 120 } }) : new TextRun("") ] }), new Paragraph({ text: "" }) ] }) }, children: childrenParagraphs }] });
         const blob = await Packer.toBlob(doc);
         saveAs(blob, `Relatorio_${dados.data.replace(/\//g, '-')}.docx`);
     } catch { alert("Erro ao criar o arquivo do Word."); }
   };
 
+  // --- DADOS DO SUPABASE ---
   const fetchHistory = async () => {
     setLoading(true);
     const { data } = await supabase.from('relatorios').select('*').order('created_at', { ascending: false });
@@ -291,6 +407,7 @@ export default function Home() {
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`, '_blank');
   };
 
+  // --- RENDERIZAÇÃO ---
   if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-gray-100 font-bold text-gray-900">Carregando...</div>;
 
   if (!session) {
@@ -326,15 +443,13 @@ export default function Home() {
         </div>
       )}
 
-      {/* HEADER OTIMIZADO PARA MOBILE E ACESSIBILIDADE (ICONE + TEXTO) */}
+      {/* HEADER OTIMIZADO - MOBILE FRIENDLY */}
       <div className="bg-blue-900 text-white p-3 sticky top-0 z-50 shadow-md flex flex-wrap justify-between items-center gap-2">
-        {/* Lado Esquerdo: Título */}
         <div className="flex items-center gap-2 overflow-hidden mr-2">
             <span className="text-xl">🛡️</span>
             <h1 className="font-bold text-sm sm:text-lg truncate">CSIPRC Segurança</h1>
         </div>
 
-        {/* Lado Direito: Botões (Com texto visível e quebra de linha permitida) */}
         <div className="flex items-center gap-2 flex-wrap justify-end flex-1">
             {view === 'form' && (
               <>
@@ -362,7 +477,6 @@ export default function Home() {
                 </button>
             )}
             
-            {/* BOTÃO SAIR */}
             <button onClick={handleLogout} className="bg-red-600 text-white p-2 rounded font-bold border border-red-500 ml-1 flex items-center" title="Sair">
                 🚪 <span className="ml-1 text-xs sm:text-sm">Sair</span>
             </button>
@@ -393,6 +507,8 @@ export default function Home() {
                          <h2 className="text-xl md:text-2xl font-bold text-blue-900">📄 Visualizar Relatório</h2>
                          <button onClick={() => setSelectedReport(null)} className="text-sm bg-gray-200 px-3 py-1 rounded text-gray-700 hover:bg-gray-300 font-bold">FECHAR X</button>
                       </div>
+                      
+                      {/* CARD DE DETALHES COMPLETO NO HISTÓRICO */}
                       <div className="bg-white p-6 md:p-10 rounded shadow-lg border border-gray-200 max-w-4xl mx-auto text-gray-800 text-sm md:text-base">
                          <div className="text-center border-b-2 border-blue-900 pb-4 mb-6">
                              <h1 className="text-xl md:text-2xl font-bold text-blue-900 uppercase">Relatório Equipe de Segurança – CSIPRC</h1>
@@ -420,17 +536,17 @@ export default function Home() {
                          <div className="mb-6">
                              <h3 className="text-blue-900 font-bold border-b border-gray-300 mb-3 uppercase">🛡️ Materiais</h3>
                              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-                                <div className="bg-gray-50 p-2 rounded border">Tonfas: <b>{selectedReport.tonfas}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Algemas: <b>{selectedReport.algemas}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Celular: <b>{selectedReport.celular}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Rádio HT: <b>{selectedReport.radioHT}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Lanternas: <b>{selectedReport.lanternas}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Escudos: <b>{selectedReport.escudos}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Rádio Cel: <b>{selectedReport.radioCelular}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Chaves Acesso: <b>{selectedReport.chavesAcesso}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Chaves Algema: <b>{selectedReport.chavesAlgemas}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Cadeados: <b>{selectedReport.cadeados}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Pendrives: <b>{selectedReport.pendrives}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Tonfas: <b>{selectedReport.tonfas || '0'}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Algemas: <b>{selectedReport.algemas || '0'}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Celular: <b>{selectedReport.celular || '0'}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Rádio HT: <b>{selectedReport.radioHT || '0'}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Lanternas: <b>{selectedReport.lanternas || '0'}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Escudos: <b>{selectedReport.escudos || '0'}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Rádio Cel: <b>{selectedReport.radioCelular || '0'}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Chaves Acesso: <b>{selectedReport.chavesAcesso || '0'}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Chaves Algema: <b>{selectedReport.chavesAlgemas || '0'}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Cadeados: <b>{selectedReport.cadeados || '0'}</b></div>
+                                <div className="bg-gray-50 p-2 rounded border">Pendrives: <b>{selectedReport.pendrives || '0'}</b></div>
                              </div>
                          </div>
                          <div className="mb-6">
@@ -438,7 +554,7 @@ export default function Home() {
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                 {Object.entries(selectedReport.alojamentos).map(([key, val]: any) => (
                                     <div key={key} className="border-b border-gray-100 py-1">
-                                        <span className="font-bold text-blue-800">AL-{key}:</span> {val.qtd} adolescentes <span className="italic text-gray-500">({val.nomes})</span>
+                                        <span className="font-bold text-blue-800">AL-{key}:</span> {val.qtd || '0'} adolescentes <span className="italic text-gray-500">({val.nomes || ''})</span>
                                     </div>
                                 ))}
                              </div>
@@ -446,7 +562,7 @@ export default function Home() {
                          <div className="mb-6">
                              <h3 className="text-blue-900 font-bold border-b border-gray-300 mb-3 uppercase">📝 Resumo do Plantão</h3>
                              <div className="bg-gray-50 p-4 rounded border border-gray-200 whitespace-pre-wrap min-h-[100px] text-gray-900">
-                                {selectedReport.resumoPlantao}
+                                {selectedReport.resumoPlantao || "Sem observações."}
                              </div>
                          </div>
                          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8 text-center">
