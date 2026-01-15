@@ -73,6 +73,7 @@ export default function Home() {
   // Controle do Microfone
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef<any>(null);
+  const baseTextRef = useRef<string>(''); // Guarda o texto antes de começar a falar para não duplicar
 
   // Estado do Formulário
   const [formData, setFormData] = useState<RelatorioData>({
@@ -94,7 +95,7 @@ export default function Home() {
     temApoioSemiliberdade: false, educadoresApoioSemiliberdade: ''
   });
 
-  // --- LÓGICA DE MICROFONE ---
+  // --- LÓGICA DE MICROFONE CORRIGIDA (SEM DUPLICAÇÃO) ---
   const toggleRecording = () => {
     if (isRecording) {
       if (recognitionRef.current) {
@@ -115,24 +116,22 @@ export default function Home() {
     recognition.continuous = true;
     recognition.interimResults = true;
 
+    // Salva o texto atual para usar como base e não duplicar
+    baseTextRef.current = formData.resumoPlantao;
+
     recognition.onresult = (event: any) => {
-      let interimTranscript = '';
-      let finalTranscript = '';
+      let currentSessionTranscript = '';
 
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
-        } else {
-          interimTranscript += event.results[i][0].transcript;
-        }
+      // Pega todo o texto falado NESTA sessão de gravação
+      for (let i = 0; i < event.results.length; ++i) {
+        currentSessionTranscript += event.results[i][0].transcript;
       }
 
-      if (finalTranscript) {
-        setFormData(prev => ({
-          ...prev,
-          resumoPlantao: (prev.resumoPlantao + ' ' + finalTranscript).trim()
-        }));
-      }
+      // Atualiza o estado: Texto Antigo + Texto Novo (sem somar repetidamente)
+      setFormData(prev => ({
+        ...prev,
+        resumoPlantao: (baseTextRef.current + ' ' + currentSessionTranscript).trim()
+      }));
     };
 
     recognition.onerror = (event: any) => {
@@ -141,8 +140,6 @@ export default function Home() {
     };
 
     recognition.onend = () => {
-      // Se parou sozinho mas o estado ainda é gravando (ex: silêncio), reinicia ou para.
-      // Aqui vamos apenas parar para simplificar.
       setIsRecording(false);
     };
 
@@ -239,7 +236,6 @@ export default function Home() {
   // --- GERADOR WHATSAPP ---
   const gerarTextoWhatsApp = (dados: RelatorioData) => {
     let texto = `*RELATÓRIO EQUIPE DE SEGURANÇA - CSIPRC*\n📅 Data: ${dados.data}\n`;
-    
     texto += `\n*👮 COORDENAÇÃO*\nCoordenador de Segurança: ${dados.coordenador}\nSupervisor: ${dados.supervisor}`;
     
     texto += `\n\n*👥 EDUCADORES*\n${dados.educadores}`;
@@ -697,6 +693,7 @@ export default function Home() {
                          </div>
                       </div>
                       
+                      {/* BOTÕES DE AÇÃO NO HISTÓRICO - GRID PARA MOBILE */}
                       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 pb-8">
                             <button onClick={() => handleResendWhatsApp(selectedReport)} className="w-full bg-green-600 text-white px-4 py-3 rounded-lg font-bold shadow hover:bg-green-700 flex items-center justify-center gap-2">📱 Enviar WhatsApp</button>
                             <button onClick={() => gerarPDF(selectedReport)} className="w-full bg-red-600 text-white px-4 py-3 rounded-lg font-bold shadow hover:bg-red-700 flex items-center justify-center gap-2">📄 Baixar PDF</button>
@@ -793,7 +790,7 @@ export default function Home() {
             <section><h3 className="flex items-center text-blue-900 font-bold border-b-2 border-blue-200 mb-4 pb-2 mt-8 text-xl"><span className="mr-2">🔢</span> Adolescentes</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{['01', '02', '03', '04', '05', '06', '07', '08'].map((num) => (<div key={num} className="bg-gray-50 p-3 rounded border border-gray-200 flex gap-2 items-center"><span className="font-bold text-blue-800 text-sm w-12">AL-{num}</span><input type="number" placeholder="Qtd" value={formData.alojamentos[num].qtd} onChange={(e) => handleAlojamentoChange(num, 'qtd', e.target.value)} className="w-16 border p-2 text-center rounded font-bold text-gray-900" /><input type="text" placeholder="Nomes..." value={formData.alojamentos[num].nomes} onChange={(e) => handleAlojamentoChange(num, 'nomes', e.target.value)} className="flex-1 border p-2 rounded text-sm text-gray-900" /></div>))}</div></section>
             <section className="mt-8 bg-red-50 p-4 rounded-lg border border-red-200"><div className="flex items-center gap-3 mb-4"><input type="checkbox" id="temSaida" name="temSaida" checked={formData.temSaida} onChange={handleChange} className="w-6 h-6 text-red-600 rounded focus:ring-red-500 border-gray-300" /><label htmlFor="temSaida" className="text-lg font-bold text-red-900 cursor-pointer">Houve Saída Externa?</label></div>{formData.temSaida && (<div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-in-down"><div><label className="text-xs font-bold text-red-800 block mb-1">Nome do Adolescente</label><input placeholder="Ex: João Silva" name="saidaAdolescente" value={formData.saidaAdolescente} onChange={handleChange} className="w-full border border-red-300 p-2 rounded bg-white text-gray-900" /></div><div><label className="text-xs font-bold text-red-800 block mb-1">Educador Responsável</label><input placeholder="Ex: Maria" name="saidaEducador" value={formData.saidaEducador} onChange={handleChange} className="w-full border border-red-300 p-2 rounded bg-white text-gray-900" /></div><div><label className="text-xs font-bold text-red-800 block mb-1">Horário</label><input placeholder="Ex: 14:00" name="saidaHorario" value={formData.saidaHorario} onChange={handleChange} className="w-full border border-red-300 p-2 rounded bg-white text-gray-900" /></div></div>)}</section>
             
-            {/* MICROFONE ADICIONADO AQUI */}
+            {/* MICROFONE AQUI */}
             <section className="relative">
                 <div className="flex justify-between items-center border-b-2 border-blue-200 mb-4 pb-2">
                     <h3 className="flex items-center text-blue-900 font-bold text-xl"><span className="mr-2">📝</span> Resumo</h3>
