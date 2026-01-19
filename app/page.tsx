@@ -502,18 +502,41 @@ export default function Home() {
     setLoading(false);
     if (data) {
       setHistorico(data.map((item: any) => ({
-        ...item, data: item.data_plantao, 
+        ...item, 
+        data: item.data_plantao, 
         apoio: item.apoio_geral || item.servicos_gerais || '', 
         supervisor: item.supervisor,
         coordenador: item.coordenador || 'Erasmo Leite',
         cozinha: item.equipe_cozinha || '',
         servicosGerais: item.equipe_servicos_gerais || '',
         portaria: item.equipe_portaria || '',
-        resumoPlantao: item.resumo_plantao, assinaturaDiurno: item.plantao_diurno, assinaturaNoturno: item.plantao_noturno, alojamentos: item.alojamentos || {},
-        temSaida: item.tem_saida || false, saidaAdolescente: item.saida_adolescente || '', saidaEducador: item.saida_educador || '', saidaHorario: item.saida_horario || '',
-        temFolga: item.tem_folga || false, educadoresFolga: item.educadores_folga || '',
-        temFerias: item.tem_ferias || false, educadoresFerias: item.educadores_ferias || '',
-        temApoioSemiliberdade: item.tem_apoio_semiliberdade || false, educadoresApoioSemiliberdade: item.educadores_apoio_semiliberdade || ''
+        resumoPlantao: item.resumo_plantao, 
+        assinaturaDiurno: item.plantao_diurno, 
+        assinaturaNoturno: item.plantao_noturno, 
+        alojamentos: item.alojamentos || {},
+        temSaida: item.tem_saida || false, 
+        saidaAdolescente: item.saida_adolescente || '', 
+        saidaEducador: item.saida_educador || '', 
+        saidaHorario: item.saida_horario || '',
+        temFolga: item.tem_folga || false, 
+        educadoresFolga: item.educadores_folga || '',
+        temFerias: item.tem_ferias || false, 
+        educadoresFerias: item.educadores_ferias || '',
+        temApoioSemiliberdade: item.tem_apoio_semiliberdade || false, 
+        educadoresApoioSemiliberdade: item.educadores_apoio_semiliberdade || '',
+        
+        // --- CORREÇÃO DE MAPEAMENTO DOS MATERIAIS ---
+        tonfas: item.tonfas,
+        algemas: item.algemas,
+        chavesAcesso: item.chaves_acesso,  // Mapeando snake_case para camelCase
+        chavesAlgemas: item.chaves_algemas, // Mapeando snake_case para camelCase
+        escudos: item.escudos,
+        lanternas: item.lanternas,
+        celular: item.celular,
+        radioCelular: item.radio_celular, // Mapeando snake_case para camelCase
+        radioHT: item.radio_ht,           // Mapeando snake_case para camelCase
+        cadeados: item.cadeados,
+        pendrives: item.pendrives
       })));
     }
   };
@@ -706,19 +729,54 @@ export default function Home() {
                              </div>
                          )}
                          <div className="mb-6">
+                             {/* NOVA VISUALIZAÇÃO DE MATERIAIS PARA EVITAR 'SOPA' NO MOBILE */}
                              <h3 className="text-blue-900 font-bold border-b border-gray-300 mb-3 uppercase">🛡️ Materiais</h3>
-                             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-                                <div className="bg-gray-50 p-2 rounded border">Tonfas: <b>{selectedReport.tonfas || '0'}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Algemas: <b>{selectedReport.algemas || '0'}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Celular: <b>{selectedReport.celular || '0'}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Rádio HT: <b>{selectedReport.radioHT || '0'}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Lanternas: <b>{selectedReport.lanternas || '0'}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Escudos: <b>{selectedReport.escudos || '0'}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Rádio Cel: <b>{selectedReport.radioCelular || '0'}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Chaves Acesso: <b>{selectedReport.chavesAcesso || '0'}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Chaves Algema: <b>{selectedReport.chavesAlgemas || '0'}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Cadeados: <b>{selectedReport.cadeados || '0'}</b></div>
-                                <div className="bg-gray-50 p-2 rounded border">Pendrives: <b>{selectedReport.pendrives || '0'}</b></div>
+                             <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
+                                {/* CARD ESTILO DASHBOARD: NOME PEQUENO EM CIMA, VALOR GRANDE EM BAIXO */}
+                                <div className="bg-gray-50 p-2 rounded border flex flex-col justify-between h-full">
+                                    <span className="text-gray-500 font-bold uppercase text-[10px] sm:text-xs">Tonfas</span>
+                                    <span className="font-bold text-lg text-gray-900">{selectedReport.tonfas || '0'}</span>
+                                </div>
+                                <div className="bg-gray-50 p-2 rounded border flex flex-col justify-between h-full">
+                                    <span className="text-gray-500 font-bold uppercase text-[10px] sm:text-xs">Algemas (Par)</span>
+                                    <span className="font-bold text-lg text-gray-900">{selectedReport.algemas || '0'}</span>
+                                </div>
+                                <div className="bg-gray-50 p-2 rounded border flex flex-col justify-between h-full">
+                                    <span className="text-gray-500 font-bold uppercase text-[10px] sm:text-xs">Celular</span>
+                                    <span className="font-bold text-lg text-gray-900">{selectedReport.celular || '0'}</span>
+                                </div>
+                                <div className="bg-gray-50 p-2 rounded border flex flex-col justify-between h-full">
+                                    <span className="text-gray-500 font-bold uppercase text-[10px] sm:text-xs">Rádio HT</span>
+                                    <span className="font-bold text-lg text-gray-900">{selectedReport.radioHT || '0'}</span>
+                                </div>
+                                <div className="bg-gray-50 p-2 rounded border flex flex-col justify-between h-full">
+                                    <span className="text-gray-500 font-bold uppercase text-[10px] sm:text-xs">Lanternas</span>
+                                    <span className="font-bold text-lg text-gray-900">{selectedReport.lanternas || '0'}</span>
+                                </div>
+                                <div className="bg-gray-50 p-2 rounded border flex flex-col justify-between h-full">
+                                    <span className="text-gray-500 font-bold uppercase text-[10px] sm:text-xs">Escudos</span>
+                                    <span className="font-bold text-lg text-gray-900">{selectedReport.escudos || '0'}</span>
+                                </div>
+                                <div className="bg-gray-50 p-2 rounded border flex flex-col justify-between h-full">
+                                    <span className="text-gray-500 font-bold uppercase text-[10px] sm:text-xs">Rádio Cel</span>
+                                    <span className="font-bold text-lg text-gray-900">{selectedReport.radioCelular || '0'}</span>
+                                </div>
+                                <div className="bg-gray-50 p-2 rounded border flex flex-col justify-between h-full">
+                                    <span className="text-gray-500 font-bold uppercase text-[10px] sm:text-xs">Chaves Acesso</span>
+                                    <span className="font-bold text-lg text-gray-900">{selectedReport.chavesAcesso || '0'}</span>
+                                </div>
+                                <div className="bg-gray-50 p-2 rounded border flex flex-col justify-between h-full">
+                                    <span className="text-gray-500 font-bold uppercase text-[10px] sm:text-xs">Chaves (Algema)</span>
+                                    <span className="font-bold text-lg text-gray-900">{selectedReport.chavesAlgemas || '0'}</span>
+                                </div>
+                                <div className="bg-gray-50 p-2 rounded border flex flex-col justify-between h-full">
+                                    <span className="text-gray-500 font-bold uppercase text-[10px] sm:text-xs">Cadeados</span>
+                                    <span className="font-bold text-lg text-gray-900">{selectedReport.cadeados || '0'}</span>
+                                </div>
+                                <div className="bg-gray-50 p-2 rounded border flex flex-col justify-between h-full">
+                                    <span className="text-gray-500 font-bold uppercase text-[10px] sm:text-xs">Pendrives</span>
+                                    <span className="font-bold text-lg text-gray-900">{selectedReport.pendrives || '0'}</span>
+                                </div>
                              </div>
                          </div>
                          <div className="mb-6">
