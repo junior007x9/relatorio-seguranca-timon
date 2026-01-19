@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, 
-  WidthType, AlignmentType, BorderStyle, Header, ImageRun   
+  WidthType, AlignmentType, BorderStyle, Header, ImageRun, VerticalAlign
 } from 'docx';
 import { saveAs } from 'file-saver';
 
@@ -41,7 +41,6 @@ type RelatorioData = {
   temSaida: boolean; saidaAdolescente: string; saidaEducador: string; saidaHorario: string;
   temFolga: boolean; educadoresFolga: string;
   temFerias: boolean; educadoresFerias: string;
-  // Novos campos de equipe
   coordenador: string;
   portaria: string;
   cozinha: string;
@@ -73,12 +72,12 @@ export default function Home() {
   // Controle do Microfone
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef<any>(null);
-  const baseTextRef = useRef<string>(''); // Guarda o texto antes de começar a falar para não duplicar
+  const baseTextRef = useRef<string>(''); 
 
   // Estado do Formulário
   const [formData, setFormData] = useState<RelatorioData>({
     data: new Date().toLocaleDateString('pt-BR'),
-    coordenador: 'Erasmo Leite', // VALOR FIXO PADRÃO
+    coordenador: 'Erasmo Leite', 
     supervisor: '', educadores: '', 
     apoio: '', cozinha: '', servicosGerais: '', portaria: '',
     plantao: '',
@@ -95,7 +94,15 @@ export default function Home() {
     temApoioSemiliberdade: false, educadoresApoioSemiliberdade: ''
   });
 
-  // --- LÓGICA DE MICROFONE CORRIGIDA (SEM DUPLICAÇÃO) ---
+  // --- HELPER: CALCULAR TOTAL ADOLESCENTES ---
+  const calcularTotalAdolescentes = (dados: RelatorioData) => {
+    return Object.values(dados.alojamentos).reduce((acc, curr) => {
+      const qtd = parseInt(curr.qtd) || 0;
+      return acc + qtd;
+    }, 0);
+  };
+
+  // --- LÓGICA DE MICROFONE ---
   const toggleRecording = () => {
     if (isRecording) {
       if (recognitionRef.current) {
@@ -116,18 +123,13 @@ export default function Home() {
     recognition.continuous = true;
     recognition.interimResults = true;
 
-    // Salva o texto atual para usar como base e não duplicar
     baseTextRef.current = formData.resumoPlantao;
 
     recognition.onresult = (event: any) => {
       let currentSessionTranscript = '';
-
-      // Pega todo o texto falado NESTA sessão de gravação
       for (let i = 0; i < event.results.length; ++i) {
         currentSessionTranscript += event.results[i][0].transcript;
       }
-
-      // Atualiza o estado: Texto Antigo + Texto Novo (sem somar repetidamente)
       setFormData(prev => ({
         ...prev,
         resumoPlantao: (baseTextRef.current + ' ' + currentSessionTranscript).trim()
@@ -235,6 +237,7 @@ export default function Home() {
 
   // --- GERADOR WHATSAPP ---
   const gerarTextoWhatsApp = (dados: RelatorioData) => {
+    const total = calcularTotalAdolescentes(dados);
     let texto = `*RELATÓRIO EQUIPE DE SEGURANÇA - CSIPRC*\n📅 Data: ${dados.data}\n`;
     texto += `\n*👮 COORDENAÇÃO*\nCoordenador de Segurança: ${dados.coordenador}\nSupervisor: ${dados.supervisor}`;
     
@@ -267,7 +270,8 @@ export default function Home() {
         const al = dados.alojamentos[num];
         if (al) { texto += `\n🏠 AL-${num}: ${al.qtd || '0'} ${al.nomes ? `(${al.nomes})` : ''}`; }
     });
-
+    
+    texto += `\n\n*TOTAL: ${total} adolescentes*`;
     texto += `\n\n*📝 RESUMO DO PLANTÃO*\n${dados.resumoPlantao || 'Sem observações.'}`;
     texto += `\n\n*✍️ ASSINATURAS*\n☀️ Diurno: ${dados.assinaturaDiurno}\n🌙 Noturno: ${dados.assinaturaNoturno}`;
 
@@ -277,39 +281,55 @@ export default function Home() {
   // --- GERADOR PDF ---
   const gerarPDF = async (dataToPrint?: RelatorioData) => {
     const dados = dataToPrint || formData;
+    const total = calcularTotalAdolescentes(dados);
+
     try {
       const logoBase64 = await getBase64ImageFromURL('/logo.png');
       const contentArray: any[] = [
-          logoBase64 ? { image: logoBase64, width: 150, alignment: 'center', margin: [0, 0, 0, 10] } : {},
+          // LOGO AUMENTADO PARA 320
+          logoBase64 ? { image: logoBase64, width: 320, alignment: 'center', margin: [0, 0, 0, 5] } : {},
           { text: 'RELATÓRIO EQUIPE DE SEGURANÇA – CSIPRC', style: 'header', alignment: 'center' },
-          { text: `Data: ${dados.data}`, style: 'subheader', alignment: 'center', margin: [0, 0, 0, 20] },
-          { columns: [{ width: '*', text: [{ text: 'COORDENADOR DE SEGURANÇA: ', bold: true }, dados.coordenador] }], margin: [0, 5] },
-          { columns: [{ width: '*', text: [{ text: 'SUPERVISOR: ', bold: true }, dados.supervisor] }], margin: [0, 5] },
-          { columns: [{ width: '*', text: [{ text: 'EDUCADORES: ', bold: true }, dados.educadores] }], margin: [0, 5] },
+          { text: `Data: ${dados.data}`, style: 'subheader', alignment: 'center', margin: [0, 0, 0, 10] }, // Margem reduzida
+          // Informações em 2 colunas para economizar espaço vertical
+          {
+            columns: [
+              { width: '*', stack: [
+                { text: [{ text: 'COORDENADOR: ', bold: true }, dados.coordenador], fontSize: 10 },
+                { text: [{ text: 'SUPERVISOR: ', bold: true }, dados.supervisor], fontSize: 10 },
+              ]},
+              { width: '*', stack: [
+                 { text: [{ text: 'PLANTÃO: ', bold: true }, dados.plantao], fontSize: 10 },
+                 { text: [{ text: 'EDUCADORES: ', bold: true }, dados.educadores], fontSize: 10 }
+              ]}
+            ], margin: [0, 2]
+          }
       ];
 
-      if (dados.temFolga) contentArray.push({ columns: [{ width: '*', text: [{ text: 'FOLGA: ', bold: true }, dados.educadoresFolga] }], margin: [0, 5] });
-      if (dados.temFerias) contentArray.push({ columns: [{ width: '*', text: [{ text: 'FÉRIAS: ', bold: true }, dados.educadoresFerias] }], margin: [0, 5] });
-      if (dados.temApoioSemiliberdade) contentArray.push({ columns: [{ width: '*', text: [{ text: 'APOIO SEMILIBERDADE: ', bold: true }, dados.educadoresApoioSemiliberdade] }], margin: [0, 5] });
+      // Linha compacta para extras
+      const extras = [];
+      if (dados.temFolga) extras.push({ text: `FOLGA: ${dados.educadoresFolga}`, fontSize: 9 });
+      if (dados.temFerias) extras.push({ text: `FÉRIAS: ${dados.educadoresFerias}`, fontSize: 9 });
+      if (dados.temApoioSemiliberdade) extras.push({ text: `APOIO SEMI: ${dados.educadoresApoioSemiliberdade}`, fontSize: 9 });
+      
+      if(extras.length > 0) {
+         contentArray.push({ columns: extras, margin: [0, 2] });
+      }
 
       contentArray.push(
           { text: 'EQUIPE DE APOIO', style: 'sectionHeader', alignment: 'center' },
           { columns: [
-              { width: '*', text: [{ text: 'Portaria: ', bold: true }, dados.portaria || '-'] },
-              { width: '*', text: [{ text: 'Cozinha: ', bold: true }, dados.cozinha || '-'] }
-          ], margin: [0, 2] },
-          { columns: [
-              { width: '*', text: [{ text: 'Serv. Gerais: ', bold: true }, dados.servicosGerais || '-'] },
-              { width: '*', text: [{ text: 'Outros Apoios: ', bold: true }, dados.apoio || '-'] }
-          ], margin: [0, 2] },
-          { text: [{ text: 'PLANTÃO: ', bold: true }, dados.plantao], margin: [0, 10, 0, 10] },
+              { width: '*', text: [{ text: 'Portaria: ', bold: true }, dados.portaria || '-'], fontSize: 10 },
+              { width: '*', text: [{ text: 'Cozinha: ', bold: true }, dados.cozinha || '-'], fontSize: 10 },
+              { width: '*', text: [{ text: 'Serv. Gerais: ', bold: true }, dados.servicosGerais || '-'], fontSize: 10 },
+              { width: '*', text: [{ text: 'Outros: ', bold: true }, dados.apoio || '-'], fontSize: 10 }
+          ], margin: [0, 2] }
       );
 
       if (dados.temSaida) {
         contentArray.push(
             { text: 'SAÍDA EXTERNA', style: 'sectionHeader', alignment: 'center', color: 'red' },
-            { columns: [{ width: '*', text: [{ text: 'Adolescente: ', bold: true }, dados.saidaAdolescente] }, { width: '*', text: [{ text: 'Horário: ', bold: true }, dados.saidaHorario] }], margin: [0, 5] },
-            { text: [{ text: 'Educador Responsável: ', bold: true }, dados.saidaEducador], margin: [0, 0, 0, 10] }
+            { columns: [{ width: '*', text: [{ text: 'Adolescente: ', bold: true }, dados.saidaAdolescente], fontSize: 10 }, { width: '*', text: [{ text: 'Horário: ', bold: true }, dados.saidaHorario], fontSize: 10 }], margin: [0, 2] },
+            { text: [{ text: 'Educador Responsável: ', bold: true }, dados.saidaEducador], margin: [0, 0, 0, 5], fontSize: 10 }
         );
       }
 
@@ -320,7 +340,7 @@ export default function Home() {
             table: {
               widths: ['*', 'auto', '*', 'auto'],
               body: [
-                [{ text: 'ITEM', bold: true, fillColor: '#eeeeee' }, { text: 'QTD', bold: true, fillColor: '#eeeeee' }, { text: 'ITEM', bold: true, fillColor: '#eeeeee' }, { text: 'QTD', bold: true, fillColor: '#eeeeee' }],
+                [{ text: 'ITEM', bold: true, fillColor: '#eeeeee', fontSize: 9 }, { text: 'QTD', bold: true, fillColor: '#eeeeee', fontSize: 9 }, { text: 'ITEM', bold: true, fillColor: '#eeeeee', fontSize: 9 }, { text: 'QTD', bold: true, fillColor: '#eeeeee', fontSize: 9 }],
                 ['Tonfas', dados.tonfas || '0', 'Celular + Carregador', dados.celular || '0'],
                 ['Algemas', dados.algemas || '0', 'Rádio Celular', dados.radioCelular || '0'],
                 ['Chaves Acesso', dados.chavesAcesso || '0', 'Rádio HT', dados.radioHT || '0'],
@@ -328,30 +348,70 @@ export default function Home() {
                 ['Escudos', dados.escudos || '0', 'Pendrives', dados.pendrives || '0'],
                 ['Lanternas', dados.lanternas || '0', '', ''],
               ]
-            }, layout: 'lightHorizontalLines', margin: [0, 5, 0, 20]
+            }, layout: 'lightHorizontalLines', margin: [0, 2, 0, 5]
           },
           { text: 'ADOLESCENTES POR ALOJAMENTO', style: 'sectionHeader', alignment: 'center' }
       );
 
-      ['01', '02', '03', '04', '05', '06', '07', '08'].forEach(num => {
-          contentArray.push({
-            text: [{ text: `Alojamento ${num}: `, bold: true }, { text: `${dados.alojamentos[num].qtd || '0'} adolescentes - ` }, { text: dados.alojamentos[num].nomes || '', italics: true }],
-            margin: [0, 2]
-          });
+      // Alojamentos em 2 colunas para economizar espaço
+      const alojamentosLeft = [];
+      const alojamentosRight = [];
+      ['01', '02', '03', '04'].forEach(num => alojamentosLeft.push({ text: [{ text: `AL-${num}: `, bold: true }, { text: `${dados.alojamentos[num].qtd || '0'} - ` }, { text: dados.alojamentos[num].nomes || '', italics: true }], fontSize: 9, margin: [0, 1] }));
+      ['05', '06', '07', '08'].forEach(num => alojamentosRight.push({ text: [{ text: `AL-${num}: `, bold: true }, { text: `${dados.alojamentos[num].qtd || '0'} - ` }, { text: dados.alojamentos[num].nomes || '', italics: true }], fontSize: 9, margin: [0, 1] }));
+
+      contentArray.push({
+          columns: [
+              { width: '*', stack: alojamentosLeft as any },
+              { width: '*', stack: alojamentosRight as any }
+          ]
       });
 
-      contentArray.push(
-          { text: 'RESUMO DO PLANTÃO', style: 'sectionHeader', alignment: 'center', margin: [0, 20, 0, 5] },
-          { text: dados.resumoPlantao || '', fontSize: 11, alignment: 'justify' },
-          { text: '_______________________________________________', alignment: 'center', margin: [0, 40, 0, 2] },
-          { text: dados.assinaturaDiurno || '(Sem nome)', bold: true, alignment: 'center' },
-          { text: 'Supervisor Diurno', alignment: 'center', fontSize: 10, margin: [0, 0, 0, 30] },
-          { text: '_______________________________________________', alignment: 'center', margin: [0, 10, 0, 2] },
-          { text: dados.assinaturaNoturno || '(Sem nome)', bold: true, alignment: 'center' },
-          { text: 'Supervisor Noturno', alignment: 'center', fontSize: 10 },
-      );
+      contentArray.push({
+          text: `TOTAL DE ADOLESCENTES: ${total}`,
+          bold: true,
+          alignment: 'right',
+          fontSize: 11,
+          margin: [0, 2, 0, 5],
+          color: '#1e3a8a'
+      });
 
-      const docDefinition: any = { pageSize: 'A4', pageMargins: [40, 40, 40, 40], content: contentArray, styles: { header: { fontSize: 18, bold: true, margin: [0, 0, 0, 5] }, subheader: { fontSize: 14, bold: true }, sectionHeader: { fontSize: 12, bold: true, decoration: 'underline', margin: [0, 10, 0, 5] }, tableExample: { margin: [0, 5, 0, 15] } } };
+      // Bloco inquebrável para Resumo e Assinaturas
+      contentArray.push({
+          unbreakable: true,
+          stack: [
+              { text: 'RESUMO DO PLANTÃO', style: 'sectionHeader', alignment: 'center', margin: [0, 5, 0, 2] },
+              { text: dados.resumoPlantao || '', fontSize: 10, alignment: 'justify' },
+              { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 515, y2: 5, lineWidth: 1 }], margin: [0, 10, 0, 10] }, // Linha separadora
+              {
+                  columns: [
+                      { width: '*', stack: [
+                          { text: '_________________________', alignment: 'center' },
+                          { text: dados.assinaturaDiurno || '(Sem nome)', bold: true, alignment: 'center', fontSize: 9 },
+                          { text: 'Supervisor Diurno', alignment: 'center', fontSize: 8 }
+                      ]},
+                      { width: '*', stack: [
+                          { text: '_________________________', alignment: 'center' },
+                          { text: dados.assinaturaNoturno || '(Sem nome)', bold: true, alignment: 'center', fontSize: 9 },
+                          { text: 'Supervisor Noturno', alignment: 'center', fontSize: 8 }
+                      ]}
+                  ]
+              }
+          ]
+      });
+
+      // MARGENS EXTREMAMENTE REDUZIDAS (15px) PARA CABER TUDO
+      const docDefinition: any = { 
+          pageSize: 'A4', 
+          pageMargins: [15, 15, 15, 15], 
+          content: contentArray, 
+          defaultStyle: { fontSize: 10 },
+          styles: { 
+              header: { fontSize: 16, bold: true, margin: [0, 0, 0, 2] }, 
+              subheader: { fontSize: 12, bold: true }, 
+              sectionHeader: { fontSize: 11, bold: true, decoration: 'underline', margin: [0, 5, 0, 2] }, 
+              tableExample: { margin: [0, 2, 0, 5] } 
+          } 
+      };
       pdfMake.createPdf(docDefinition).download(`Relatorio_PDF_${dados.data.replace(/\//g, '-')}.pdf`);
     } catch { alert("Erro ao gerar PDF."); }
   };
@@ -359,81 +419,77 @@ export default function Home() {
   // --- GERADOR WORD ---
   const gerarWord = async (dataToPrint?: RelatorioData) => {
     const dados = dataToPrint || formData;
+    const total = calcularTotalAdolescentes(dados);
+
     try {
         const logoBuffer = await carregarImagemBuffer('/logo.png');
-        const cellStyle = { borders: { top: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" }, bottom: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" }, left: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" }, right: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" } }, margins: { top: 100, bottom: 100, left: 100, right: 100 } };
+        const cellStyle = { borders: { top: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" }, bottom: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" }, left: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" }, right: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" } }, margins: { top: 50, bottom: 50, left: 50, right: 50 } };
+        const noSpacing = { after: 0, before: 0 }; // Remove espaços entre parágrafos
         
         const childrenParagraphs = [
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: "RELATÓRIO EQUIPE DE SEGURANÇA – CSIPRC", bold: true, size: 28 }) ] }),
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: `Data: ${dados.data}`, bold: true, size: 24 }) ] }),
-              new Paragraph({ text: "" }),
-              new Paragraph({ children: [new TextRun({ text: "COORDENADOR DE SEGURANÇA: ", bold: true }), new TextRun(dados.coordenador)] }),
-              new Paragraph({ children: [new TextRun({ text: "SUPERVISOR: ", bold: true }), new TextRun(dados.supervisor)] }),
-              new Paragraph({ children: [new TextRun({ text: "EDUCADORES: ", bold: true }), new TextRun(dados.educadores)] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: "RELATÓRIO EQUIPE DE SEGURANÇA – CSIPRC", bold: true, size: 24 }) ], spacing: noSpacing }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: `Data: ${dados.data}`, bold: true, size: 20 }) ], spacing: { after: 100 } }),
+              
+              new Paragraph({ children: [new TextRun({ text: "COORDENADOR: ", bold: true }), new TextRun(dados.coordenador + " | "), new TextRun({ text: "SUPERVISOR: ", bold: true }), new TextRun(dados.supervisor)], spacing: noSpacing }),
+              new Paragraph({ children: [new TextRun({ text: "EDUCADORES: ", bold: true }), new TextRun(dados.educadores)], spacing: noSpacing }),
         ];
 
-        if (dados.temFolga) childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "FOLGA: ", bold: true }), new TextRun(dados.educadoresFolga)] }));
-        if (dados.temFerias) childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "FÉRIAS: ", bold: true }), new TextRun(dados.educadoresFerias)] }));
-        if (dados.temApoioSemiliberdade) childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "APOIO SEMILIBERDADE: ", bold: true }), new TextRun(dados.educadoresApoioSemiliberdade)] }));
+        if (dados.temFolga) childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "FOLGA: ", bold: true }), new TextRun(dados.educadoresFolga)], spacing: noSpacing }));
+        if (dados.temFerias) childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "FÉRIAS: ", bold: true }), new TextRun(dados.educadoresFerias)], spacing: noSpacing }));
+        if (dados.temApoioSemiliberdade) childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "APOIO SEMI: ", bold: true }), new TextRun(dados.educadoresApoioSemiliberdade)], spacing: noSpacing }));
 
         childrenParagraphs.push(
               new Paragraph({ text: "" }),
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "EQUIPE DE APOIO", bold: true, underline: {} })] }),
-              new Paragraph({ children: [new TextRun({ text: "Portaria: ", bold: true }), new TextRun(dados.portaria || "-")] }),
-              new Paragraph({ children: [new TextRun({ text: "Cozinha: ", bold: true }), new TextRun(dados.cozinha || "-")] }),
-              new Paragraph({ children: [new TextRun({ text: "Serv. Gerais: ", bold: true }), new TextRun(dados.servicosGerais || "-")] }),
-              new Paragraph({ children: [new TextRun({ text: "Outros: ", bold: true }), new TextRun(dados.apoio || "-")] }),
-              new Paragraph({ children: [new TextRun({ text: "PLANTÃO: ", bold: true }), new TextRun(dados.plantao)] }),
-              new Paragraph({ text: "" }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "EQUIPE DE APOIO", bold: true, underline: {} })], spacing: noSpacing }),
+              new Paragraph({ children: [new TextRun({ text: "Portaria: ", bold: true }), new TextRun(dados.portaria || "-" + " | "), new TextRun({ text: "Cozinha: ", bold: true }), new TextRun(dados.cozinha || "-")], spacing: noSpacing }),
+              new Paragraph({ children: [new TextRun({ text: "Serv. Gerais: ", bold: true }), new TextRun(dados.servicosGerais || "-" + " | "), new TextRun({ text: "Outros: ", bold: true }), new TextRun(dados.apoio || "-")], spacing: noSpacing }),
+              new Paragraph({ children: [new TextRun({ text: "PLANTÃO: ", bold: true }), new TextRun(dados.plantao)], spacing: { after: 100 } }),
         );
 
         if (dados.temSaida) {
             childrenParagraphs.push(
-                new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "SAÍDA EXTERNA", bold: true, underline: {}, color: "FF0000" })] }),
-                new Paragraph({ text: "" }),
-                new Paragraph({ children: [new TextRun({ text: "Adolescente: ", bold: true }), new TextRun(dados.saidaAdolescente)] }),
-                new Paragraph({ children: [new TextRun({ text: "Educador: ", bold: true }), new TextRun(dados.saidaEducador)] }),
-                new Paragraph({ children: [new TextRun({ text: "Horário: ", bold: true }), new TextRun(dados.saidaHorario)] }),
-                new Paragraph({ text: "" }),
+                new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "SAÍDA EXTERNA", bold: true, underline: {}, color: "FF0000" })], spacing: noSpacing }),
+                new Paragraph({ children: [new TextRun({ text: "Adolescente: ", bold: true }), new TextRun(dados.saidaAdolescente + " | "), new TextRun({ text: "Horário: ", bold: true }), new TextRun(dados.saidaHorario)], spacing: noSpacing }),
+                new Paragraph({ children: [new TextRun({ text: "Educador: ", bold: true }), new TextRun(dados.saidaEducador)], spacing: { after: 100 } }),
             );
         }
 
         childrenParagraphs.push(
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "MATERIAIS DE SEGURANÇA", bold: true, underline: {} })] }),
-              new Paragraph({ text: "" }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "MATERIAIS DE SEGURANÇA", bold: true, underline: {} })], spacing: { after: 50 } }),
               new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [
-                  new TableRow({ children: [ new TableCell({ children: [new Paragraph({ text: "ITEM", bold: true })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "QTD", bold: true })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "ITEM", bold: true })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "QTD", bold: true })], ...cellStyle }) ] }),
-                  new TableRow({ children: [ new TableCell({ children: [new Paragraph("Tonfas")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.tonfas || "0")], ...cellStyle }), new TableCell({ children: [new Paragraph("Celular + Carregador")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.celular || "0")], ...cellStyle }) ] }),
-                  new TableRow({ children: [ new TableCell({ children: [new Paragraph("Algemas")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.algemas || "0")], ...cellStyle }), new TableCell({ children: [new Paragraph("Rádio Celular")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.radioCelular || "0")], ...cellStyle }) ] }),
-                  new TableRow({ children: [ new TableCell({ children: [new Paragraph("Chaves de Acesso")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.chavesAcesso || "0")], ...cellStyle }), new TableCell({ children: [new Paragraph("Rádio HT")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.radioHT || "0")], ...cellStyle }) ] }),
-                  new TableRow({ children: [ new TableCell({ children: [new Paragraph("Chaves de Algemas")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.chavesAlgemas || "0")], ...cellStyle }), new TableCell({ children: [new Paragraph("Cadeados")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.cadeados || "0")], ...cellStyle }) ] }),
-                  new TableRow({ children: [ new TableCell({ children: [new Paragraph("Escudos")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.escudos || "0")], ...cellStyle }), new TableCell({ children: [new Paragraph("Pendrives")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.pendrives || "0")], ...cellStyle }) ] }),
-                  new TableRow({ children: [ new TableCell({ children: [new Paragraph("Lanternas")], ...cellStyle }), new TableCell({ children: [new Paragraph(dados.lanternas || "0")], ...cellStyle }), new TableCell({ children: [new Paragraph("")], ...cellStyle }), new TableCell({ children: [new Paragraph("")], ...cellStyle }) ] })
+                  new TableRow({ children: [ new TableCell({ children: [new Paragraph({ text: "ITEM", bold: true, size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "QTD", bold: true, size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "ITEM", bold: true, size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "QTD", bold: true, size: 18 })], ...cellStyle }) ] }),
+                  new TableRow({ children: [ new TableCell({ children: [new Paragraph({ text: "Tonfas", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.tonfas || "0", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "Celular + Carregador", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.celular || "0", size: 18 })], ...cellStyle }) ] }),
+                  new TableRow({ children: [ new TableCell({ children: [new Paragraph({ text: "Algemas", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.algemas || "0", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "Rádio Celular", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.radioCelular || "0", size: 18 })], ...cellStyle }) ] }),
+                  new TableRow({ children: [ new TableCell({ children: [new Paragraph({ text: "Chaves Acesso", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.chavesAcesso || "0", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "Rádio HT", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.radioHT || "0", size: 18 })], ...cellStyle }) ] }),
+                  new TableRow({ children: [ new TableCell({ children: [new Paragraph({ text: "Chaves Algema", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.chavesAlgemas || "0", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "Cadeados", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.cadeados || "0", size: 18 })], ...cellStyle }) ] }),
+                  new TableRow({ children: [ new TableCell({ children: [new Paragraph({ text: "Escudos", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.escudos || "0", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "Pendrives", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.pendrives || "0", size: 18 })], ...cellStyle }) ] }),
+                  new TableRow({ children: [ new TableCell({ children: [new Paragraph({ text: "Lanternas", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.lanternas || "0", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "", size: 18 })], ...cellStyle }) ] })
               ] }),
               new Paragraph({ text: "" }),
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "ADOLESCENTES POR ALOJAMENTO", bold: true, underline: {} })] }),
-              new Paragraph({ text: "" })
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "ADOLESCENTES POR ALOJAMENTO", bold: true, underline: {} })], spacing: noSpacing })
         );
 
         ['01', '02', '03', '04', '05', '06', '07', '08'].forEach(num => {
-            childrenParagraphs.push(new Paragraph({ children: [ new TextRun({ text: `Alojamento ${num}: `, bold: true }), new TextRun({ text: `${dados.alojamentos[num].qtd || '0'} adolescentes - ` }), new TextRun({ text: dados.alojamentos[num].nomes || '', italics: true }) ], spacing: { after: 120 } }));
+            if (dados.alojamentos[num].qtd && dados.alojamentos[num].qtd !== '0') {
+               childrenParagraphs.push(new Paragraph({ children: [ new TextRun({ text: `AL-${num}: `, bold: true, size: 18 }), new TextRun({ text: `${dados.alojamentos[num].qtd} - `, size: 18 }), new TextRun({ text: dados.alojamentos[num].nomes || '', italics: true, size: 18 }) ], spacing: noSpacing }));
+            }
         });
 
         childrenParagraphs.push(
-              new Paragraph({ text: "" }),
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "RESUMO DO PLANTÃO", bold: true, underline: {} })] }),
-              new Paragraph({ text: "" }),
-              new Paragraph({ children: [new TextRun(dados.resumoPlantao || "")] }),
-              new Paragraph({ text: "\n\n" }), 
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "_______________________________________________" })] }),
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: dados.assinaturaDiurno || "(Sem nome)", bold: true }) ] }),
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Supervisor Diurno", size: 20 })], spacing: { after: 400 } }),
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "_______________________________________________" })] }),
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: dados.assinaturaNoturno || "(Sem nome)", bold: true }) ] }),
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Supervisor Noturno", size: 20 })] })
+            new Paragraph({ alignment: AlignmentType.RIGHT, children: [ new TextRun({ text: `TOTAL: ${total}`, bold: true, size: 22 }) ], spacing: { before: 50, after: 50 } })
         );
 
-        const doc = new Document({ sections: [{ properties: {}, headers: { default: new Header({ children: [ new Paragraph({ alignment: AlignmentType.CENTER, children: [ logoBuffer ? new ImageRun({ data: new Uint8Array(logoBuffer), transformation: { width: 475, height: 120 } }) : new TextRun("") ] }), new Paragraph({ text: "" }) ] }) }, children: childrenParagraphs }] });
+        childrenParagraphs.push(
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "RESUMO DO PLANTÃO", bold: true, underline: {} })], keepNext: true, spacing: noSpacing }),
+              new Paragraph({ children: [new TextRun({ text: dados.resumoPlantao || "", size: 18 })], keepNext: true }),
+              new Paragraph({ text: "\n", keepNext: true, spacing: noSpacing }), 
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "___________________________       ___________________________" })], keepNext: true, spacing: noSpacing }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: `${dados.assinaturaDiurno || "(Sem nome)"}             ${dados.assinaturaNoturno || "(Sem nome)"}`, bold: true, size: 16 }) ], keepNext: true, spacing: noSpacing }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Supervisor Diurno                     Supervisor Noturno", size: 14 })], keepNext: true })
+        );
+
+        // LOGO AUMENTADO PARA 650 NO WORD
+        const doc = new Document({ sections: [{ properties: { page: { margin: { top: 500, bottom: 500, left: 500, right: 500 } } } as any, headers: { default: new Header({ children: [ new Paragraph({ alignment: AlignmentType.CENTER, children: [ logoBuffer ? new ImageRun({ data: new Uint8Array(logoBuffer), transformation: { width: 650, height: 160 } }) : new TextRun("") ] }), new Paragraph({ text: "" }) ] }) }, children: childrenParagraphs }] });
         const blob = await Packer.toBlob(doc);
         saveAs(blob, `Relatorio_${dados.data.replace(/\//g, '-')}.docx`);
     } catch { alert("Erro ao criar o arquivo do Word."); }
@@ -532,6 +588,8 @@ export default function Home() {
   }
 
   const isUserAdmin = session.user.email === ADMIN_EMAIL;
+  // Total para exibir na tela do formulário também
+  const totalAtual = calcularTotalAdolescentes(formData);
 
   return (
     <div className="min-h-screen bg-gray-100 font-sans pb-10">
@@ -672,6 +730,10 @@ export default function Home() {
                                     </div>
                                 ))}
                              </div>
+                             {/* TOTAL NO VISUALIZADOR DE HISTÓRICO */}
+                             <div className="mt-4 pt-2 border-t border-gray-300 text-right">
+                                <span className="text-xl font-bold text-blue-900">Total: {calcularTotalAdolescentes(selectedReport)}</span>
+                             </div>
                          </div>
                          <div className="mb-6">
                              <h3 className="text-blue-900 font-bold border-b border-gray-300 mb-3 uppercase">📝 Resumo do Plantão</h3>
@@ -787,7 +849,15 @@ export default function Home() {
             </section>
             
             <section><h3 className="flex items-center text-blue-900 font-bold border-b-2 border-blue-200 mb-4 pb-2 mt-8 text-xl"><span className="mr-2">🛡️</span> Materiais (Qtd)</h3><div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">{['tonfas', 'algemas', 'chavesAcesso', 'chavesAlgemas', 'escudos', 'lanternas', 'celular', 'radioCelular', 'radioHT', 'cadeados', 'pendrives'].map((item) => (<div key={item} className="flex flex-col"><label className="text-gray-600 text-xs capitalize mb-1">{item.replace(/([A-Z])/g, ' $1')}</label><input type="number" name={item} onChange={handleChange} value={formData[item as keyof RelatorioData] as string} className="w-full border p-2 rounded bg-white text-gray-900" placeholder="0"/></div>))}</div></section>
-            <section><h3 className="flex items-center text-blue-900 font-bold border-b-2 border-blue-200 mb-4 pb-2 mt-8 text-xl"><span className="mr-2">🔢</span> Adolescentes</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{['01', '02', '03', '04', '05', '06', '07', '08'].map((num) => (<div key={num} className="bg-gray-50 p-3 rounded border border-gray-200 flex gap-2 items-center"><span className="font-bold text-blue-800 text-sm w-12">AL-{num}</span><input type="number" placeholder="Qtd" value={formData.alojamentos[num].qtd} onChange={(e) => handleAlojamentoChange(num, 'qtd', e.target.value)} className="w-16 border p-2 text-center rounded font-bold text-gray-900" /><input type="text" placeholder="Nomes..." value={formData.alojamentos[num].nomes} onChange={(e) => handleAlojamentoChange(num, 'nomes', e.target.value)} className="flex-1 border p-2 rounded text-sm text-gray-900" /></div>))}</div></section>
+            <section>
+                <div className="flex justify-between items-center border-b-2 border-blue-200 mb-4 pb-2 mt-8">
+                    <h3 className="flex items-center text-blue-900 font-bold text-xl"><span className="mr-2">🔢</span> Adolescentes</h3>
+                    <div className="bg-blue-100 text-blue-900 px-3 py-1 rounded-full font-bold text-sm">
+                        Total: {totalAtual}
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{['01', '02', '03', '04', '05', '06', '07', '08'].map((num) => (<div key={num} className="bg-gray-50 p-3 rounded border border-gray-200 flex gap-2 items-center"><span className="font-bold text-blue-800 text-sm w-12">AL-{num}</span><input type="number" placeholder="Qtd" value={formData.alojamentos[num].qtd} onChange={(e) => handleAlojamentoChange(num, 'qtd', e.target.value)} className="w-16 border p-2 text-center rounded font-bold text-gray-900" /><input type="text" placeholder="Nomes..." value={formData.alojamentos[num].nomes} onChange={(e) => handleAlojamentoChange(num, 'nomes', e.target.value)} className="flex-1 border p-2 rounded text-sm text-gray-900" /></div>))}</div>
+            </section>
             <section className="mt-8 bg-red-50 p-4 rounded-lg border border-red-200"><div className="flex items-center gap-3 mb-4"><input type="checkbox" id="temSaida" name="temSaida" checked={formData.temSaida} onChange={handleChange} className="w-6 h-6 text-red-600 rounded focus:ring-red-500 border-gray-300" /><label htmlFor="temSaida" className="text-lg font-bold text-red-900 cursor-pointer">Houve Saída Externa?</label></div>{formData.temSaida && (<div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-in-down"><div><label className="text-xs font-bold text-red-800 block mb-1">Nome do Adolescente</label><input placeholder="Ex: João Silva" name="saidaAdolescente" value={formData.saidaAdolescente} onChange={handleChange} className="w-full border border-red-300 p-2 rounded bg-white text-gray-900" /></div><div><label className="text-xs font-bold text-red-800 block mb-1">Educador Responsável</label><input placeholder="Ex: Maria" name="saidaEducador" value={formData.saidaEducador} onChange={handleChange} className="w-full border border-red-300 p-2 rounded bg-white text-gray-900" /></div><div><label className="text-xs font-bold text-red-800 block mb-1">Horário</label><input placeholder="Ex: 14:00" name="saidaHorario" value={formData.saidaHorario} onChange={handleChange} className="w-full border border-red-300 p-2 rounded bg-white text-gray-900" /></div></div>)}</section>
             
             {/* MICROFONE AQUI */}
