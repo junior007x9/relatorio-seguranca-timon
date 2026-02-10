@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, 
-  WidthType, AlignmentType, BorderStyle, Header, ImageRun, VerticalAlign
+  WidthType, AlignmentType, BorderStyle, Header, ImageRun
 } from 'docx';
 import { saveAs } from 'file-saver';
 
@@ -32,6 +32,8 @@ const TEMPO_AVISO = 4.5 * 60 * 1000;
 
 // --- TIPAGEM DE DADOS ---
 type AlojamentoDados = { qtd: string; nomes: string; };
+type HistoricoEdicao = { usuario: string; dataHora: string; acao: string; }; // Nova Tipagem
+
 type RelatorioData = {
   id?: number; created_at?: string; data: string; supervisor: string; educadores: string; apoio: string; plantao: string;
   tonfas: string; algemas: string; chavesAcesso: string; chavesAlgemas: string; escudos: string; lanternas: string;
@@ -47,35 +49,11 @@ type RelatorioData = {
   servicosGerais: string;
   temApoioSemiliberdade: boolean;
   educadoresApoioSemiliberdade: string;
+  historicoEdicoes: HistoricoEdicao[]; // Novo Campo
 };
 
-export default function Home() {
-  // Estados de Autenticação
-  const [session, setSession] = useState<any>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserPassword, setNewUserPassword] = useState('');
-  
-  // Estados da Aplicação
-  const [loading, setLoading] = useState(false);
-  const [view, setView] = useState<'form' | 'history' | 'admin'>('form');
-  const [historico, setHistorico] = useState<RelatorioData[]>([]);
-  const [selectedReport, setSelectedReport] = useState<RelatorioData | null>(null);
-  
-  // Controle de Inatividade
-  const [showInactivityWarning, setShowInactivityWarning] = useState(false);
-  const logoutTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Controle do Microfone
-  const [isRecording, setIsRecording] = useState(false);
-  const recognitionRef = useRef<any>(null);
-  const baseTextRef = useRef<string>(''); 
-
-  // Estado do Formulário
-  const [formData, setFormData] = useState<RelatorioData>({
+// --- ESTADO INICIAL (RESET) ---
+const INITIAL_FORM_DATA: RelatorioData = {
     data: new Date().toLocaleDateString('pt-BR'),
     coordenador: 'Erasmo Leite', 
     supervisor: '', educadores: '', 
@@ -91,8 +69,37 @@ export default function Home() {
     temSaida: false, saidaAdolescente: '', saidaEducador: '', saidaHorario: '',
     temFolga: false, educadoresFolga: '',
     temFerias: false, educadoresFerias: '',
-    temApoioSemiliberdade: false, educadoresApoioSemiliberdade: ''
-  });
+    temApoioSemiliberdade: false, educadoresApoioSemiliberdade: '',
+    historicoEdicoes: []
+};
+
+export default function Home() {
+  // Estados de Autenticação
+  const [session, setSession] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+   
+  // Estados da Aplicação
+  const [loading, setLoading] = useState(false);
+  const [view, setView] = useState<'form' | 'history' | 'admin'>('form');
+  const [historico, setHistorico] = useState<RelatorioData[]>([]);
+  const [selectedReport, setSelectedReport] = useState<RelatorioData | null>(null);
+   
+  // Controle de Inatividade
+  const [showInactivityWarning, setShowInactivityWarning] = useState(false);
+  const logoutTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Controle do Microfone
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const baseTextRef = useRef<string>(''); 
+
+  // Estado do Formulário
+  const [formData, setFormData] = useState<RelatorioData>(INITIAL_FORM_DATA);
 
   // --- HELPER: CALCULAR TOTAL ADOLESCENTES ---
   const calcularTotalAdolescentes = (dados: RelatorioData) => {
@@ -226,6 +233,25 @@ export default function Home() {
     setFormData(prev => ({ ...prev, alojamentos: { ...prev.alojamentos, [id]: { ...prev.alojamentos[id], [field]: value } } }));
   };
 
+  // --- FUNÇÃO PARA EDITAR RELATÓRIO ---
+  const handleEditReport = (report: RelatorioData) => {
+    setFormData({
+        ...report
+    });
+    setSelectedReport(null);
+    setView('form');
+    // Rolar para o topo
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // --- FUNÇÃO PARA CANCELAR EDIÇÃO ---
+  const handleCancelEdit = () => {
+      if(confirm("Tem certeza que deseja cancelar a edição? Os dados não salvos serão perdidos.")) {
+          setFormData(INITIAL_FORM_DATA);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+  };
+
   const carregarImagemBuffer = async (url: string) => { try { const r = await fetch(url); if (!r.ok) return null; const b = await r.blob(); return await b.arrayBuffer(); } catch { return null; } };
   const getBase64ImageFromURL = (url: string): Promise<string | null> => {
     return new Promise((resolve) => {
@@ -240,7 +266,7 @@ export default function Home() {
     const total = calcularTotalAdolescentes(dados);
     let texto = `*RELATÓRIO EQUIPE DE SEGURANÇA - CSIPRC*\n📅 Data: ${dados.data}\n`;
     texto += `\n*👮 COORDENAÇÃO*\nCoordenador de Segurança: ${dados.coordenador}\nSupervisor: ${dados.supervisor}`;
-    
+     
     texto += `\n\n*👥 EDUCADORES*\n${dados.educadores}`;
     if (dados.temFolga) texto += `\n🏖️ Folga: ${dados.educadoresFolga}`;
     if (dados.temFerias) texto += `\n✈️ Férias: ${dados.educadoresFerias}`;
@@ -252,7 +278,7 @@ export default function Home() {
     texto += `\nServ. Gerais: ${dados.servicosGerais || '-'}`;
     texto += `\nOutros Apoios: ${dados.apoio || '-'}`;
     texto += `\n\n🕒 Plantão: ${dados.plantao}`;
-    
+     
     if (dados.temSaida) { 
         texto += `\n\n*🚨 SAÍDA EXTERNA*\n👤 Adolescente: ${dados.saidaAdolescente}\n👮 Educador: ${dados.saidaEducador}\n⏰ Horário: ${dados.saidaHorario}`; 
     }
@@ -270,7 +296,7 @@ export default function Home() {
         const al = dados.alojamentos[num];
         if (al) { texto += `\n🏠 AL-${num}: ${al.qtd || '0'} ${al.nomes ? `(${al.nomes})` : ''}`; }
     });
-    
+     
     texto += `\n\n*TOTAL: ${total} adolescentes*`;
     texto += `\n\n*📝 RESUMO DO PLANTÃO*\n${dados.resumoPlantao || 'Sem observações.'}`;
     texto += `\n\n*✍️ ASSINATURAS*\n☀️ Diurno: ${dados.assinaturaDiurno}\n🌙 Noturno: ${dados.assinaturaNoturno}`;
@@ -289,7 +315,7 @@ export default function Home() {
           // LOGO AUMENTADO PARA 320
           logoBase64 ? { image: logoBase64, width: 320, alignment: 'center', margin: [0, 0, 0, 5] } : {},
           { text: 'RELATÓRIO EQUIPE DE SEGURANÇA – CSIPRC', style: 'header', alignment: 'center' },
-          { text: `Data: ${dados.data}`, style: 'subheader', alignment: 'center', margin: [0, 0, 0, 10] }, // Margem reduzida
+          { text: `Data: ${dados.data}`, style: 'subheader', alignment: 'center', margin: [0, 0, 0, 10] }, 
           // Informações em 2 colunas para economizar espaço vertical
           {
             columns: [
@@ -375,27 +401,32 @@ export default function Home() {
           color: '#1e3a8a'
       });
 
-      // Bloco inquebrável para Resumo e Assinaturas
-      contentArray.push({
-          unbreakable: true,
+      // --- CORREÇÃO: O TEXTO AGORA PODE QUEBRAR A PÁGINA ---
+      // 1. Título do Resumo
+      contentArray.push({ text: 'RESUMO DO PLANTÃO', style: 'sectionHeader', alignment: 'center', margin: [0, 5, 0, 2] });
+      
+      // 2. O texto longo (sem estar preso em blocos inquebráveis)
+      contentArray.push({ text: dados.resumoPlantao || '', fontSize: 10, alignment: 'justify', margin: [0, 0, 0, 10] });
+
+      // 3. Linha e Assinaturas (mantendo APENAS as assinaturas juntas)
+      contentArray.push({ 
+          unbreakable: true, 
           stack: [
-              { text: 'RESUMO DO PLANTÃO', style: 'sectionHeader', alignment: 'center', margin: [0, 5, 0, 2] },
-              { text: dados.resumoPlantao || '', fontSize: 10, alignment: 'justify' },
-              { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 515, y2: 5, lineWidth: 1 }], margin: [0, 10, 0, 10] }, // Linha separadora
-              {
-                  columns: [
-                      { width: '*', stack: [
-                          { text: '_________________________', alignment: 'center' },
-                          { text: dados.assinaturaDiurno || '(Sem nome)', bold: true, alignment: 'center', fontSize: 9 },
-                          { text: 'Supervisor Diurno', alignment: 'center', fontSize: 8 }
-                      ]},
-                      { width: '*', stack: [
-                          { text: '_________________________', alignment: 'center' },
-                          { text: dados.assinaturaNoturno || '(Sem nome)', bold: true, alignment: 'center', fontSize: 9 },
-                          { text: 'Supervisor Noturno', alignment: 'center', fontSize: 8 }
-                      ]}
-                  ]
-              }
+            { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 515, y2: 5, lineWidth: 1 }], margin: [0, 0, 0, 10] },
+            {
+                columns: [
+                    { width: '*', stack: [
+                        { text: '_________________________', alignment: 'center' },
+                        { text: dados.assinaturaDiurno || '(Sem nome)', bold: true, alignment: 'center', fontSize: 9 },
+                        { text: 'Supervisor Diurno', alignment: 'center', fontSize: 8 }
+                    ]},
+                    { width: '*', stack: [
+                        { text: '_________________________', alignment: 'center' },
+                        { text: dados.assinaturaNoturno || '(Sem nome)', bold: true, alignment: 'center', fontSize: 9 },
+                        { text: 'Supervisor Noturno', alignment: 'center', fontSize: 8 }
+                    ]}
+                ]
+            }
           ]
       });
 
@@ -481,11 +512,14 @@ export default function Home() {
 
         childrenParagraphs.push(
               new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "RESUMO DO PLANTÃO", bold: true, underline: {} })], keepNext: true, spacing: noSpacing }),
-              new Paragraph({ children: [new TextRun({ text: dados.resumoPlantao || "", size: 18 })], keepNext: true }),
+              
+              // --- CORREÇÃO WORD: Removemos keepNext para permitir quebra de página no texto longo ---
+              new Paragraph({ children: [new TextRun({ text: dados.resumoPlantao || "", size: 18 })], spacing: { after: 200 } }),
+              
               new Paragraph({ text: "\n", keepNext: true, spacing: noSpacing }), 
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "___________________________       ___________________________" })], keepNext: true, spacing: noSpacing }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "___________________________        ___________________________" })], keepNext: true, spacing: noSpacing }),
               new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: `${dados.assinaturaDiurno || "(Sem nome)"}             ${dados.assinaturaNoturno || "(Sem nome)"}`, bold: true, size: 16 }) ], keepNext: true, spacing: noSpacing }),
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Supervisor Diurno                     Supervisor Noturno", size: 14 })], keepNext: true })
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Supervisor Diurno                      Supervisor Noturno", size: 14 })], keepNext: true })
         );
 
         // LOGO AUMENTADO PARA 650 NO WORD
@@ -536,7 +570,10 @@ export default function Home() {
         radioCelular: item.radio_celular, // Mapeando snake_case para camelCase
         radioHT: item.radio_ht,           // Mapeando snake_case para camelCase
         cadeados: item.cadeados,
-        pendrives: item.pendrives
+        pendrives: item.pendrives,
+        
+        // --- HISTÓRICO DE EDIÇÕES ---
+        historicoEdicoes: item.historico_edicoes || []
       })));
     }
   };
@@ -551,7 +588,20 @@ export default function Home() {
   };
 
   const salvarNoSupabase = async () => {
-    return await supabase.from('relatorios').insert([{
+    // --- LÓGICA DE AUDIT LOG (QUEM EDITOU) ---
+    const novoHistorico = [...(formData.historicoEdicoes || [])];
+    
+    // Se for uma edição (tem ID), adiciona registro ao histórico
+    if (formData.id) {
+        novoHistorico.push({
+            usuario: session.user.email,
+            dataHora: new Date().toLocaleString('pt-BR'),
+            acao: 'Edição'
+        });
+    }
+
+    // PREPARA O OBJETO PARA O BANCO DE DADOS
+    const payload = {
       data_plantao: formData.data, educadores: formData.educadores, supervisor: formData.supervisor, 
       coordenador: formData.coordenador, 
       apoio_geral: formData.apoio,
@@ -564,15 +614,32 @@ export default function Home() {
       tem_saida: formData.temSaida, saida_adolescente: formData.saidaAdolescente, saida_educador: formData.saidaEducador, saida_horario: formData.saidaHorario,
       tem_folga: formData.temFolga, educadores_folga: formData.educadoresFolga,
       tem_ferias: formData.temFerias, educadores_ferias: formData.educadoresFerias,
-      tem_apoio_semiliberdade: formData.temApoioSemiliberdade, educadores_apoio_semiliberdade: formData.educadoresApoioSemiliberdade
-    }]);
+      tem_apoio_semiliberdade: formData.temApoioSemiliberdade, educadores_apoio_semiliberdade: formData.educadoresApoioSemiliberdade,
+      
+      // Salva o histórico atualizado
+      historico_edicoes: novoHistorico
+    };
+
+    // --- LÓGICA DE UPDATE OU INSERT ---
+    if (formData.id) {
+        // Se tem ID, atualiza
+        return await supabase.from('relatorios').update(payload).eq('id', formData.id);
+    } else {
+        // Se não tem ID, cria novo
+        return await supabase.from('relatorios').insert([payload]);
+    }
   };
 
   const handleSalvarApenas = async () => {
     setLoading(true);
     const { error } = await salvarNoSupabase();
     setLoading(false);
-    if (error) alert("Erro ao salvar: " + error.message); else alert("✅ Salvo com sucesso!");
+    
+    if (error) {
+        alert("Erro ao salvar: " + error.message);
+    } else {
+        alert(formData.id ? "✅ Relatório ATUALIZADO com sucesso!" : "✅ Relatório SALVO com sucesso!");
+    }
   };
 
   const handleSaveAndSend = async () => {
@@ -580,7 +647,7 @@ export default function Home() {
     const { error } = await salvarNoSupabase();
     setLoading(false);
     if (error) { alert("Erro ao salvar: " + error.message); return; }
-    
+     
     const texto = gerarTextoWhatsApp(formData);
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`, '_blank');
   };
@@ -795,7 +862,7 @@ export default function Home() {
                          </div>
                          <div className="mb-6">
                              <h3 className="text-blue-900 font-bold border-b border-gray-300 mb-3 uppercase">📝 Resumo do Plantão</h3>
-                             <div className="bg-gray-50 p-4 rounded border border-gray-200 whitespace-pre-wrap min-h-[100px] text-gray-900">
+                             <div className="bg-gray-50 p-4 rounded border border-gray-200 whitespace-pre-wrap min-h-[100px] text-gray-900 break-words overflow-hidden">
                                 {selectedReport.resumoPlantao || "Sem observações."}
                              </div>
                          </div>
@@ -811,10 +878,37 @@ export default function Home() {
                                  <p className="text-xs text-gray-500 uppercase">Supervisor Noturno</p>
                              </div>
                          </div>
+
+                         {/* --- LINHA DO TEMPO (AUDIT LOG) AQUI --- */}
+                         {selectedReport.historicoEdicoes && selectedReport.historicoEdicoes.length > 0 && (
+                            <div className="mt-10 border-t-2 border-gray-200 pt-6">
+                                <h3 className="text-gray-500 font-bold uppercase text-sm mb-4 text-center">🕒 Histórico de Alterações</h3>
+                                <div className="space-y-4">
+                                    {selectedReport.historicoEdicoes.map((edicao, index) => (
+                                        <div key={index} className="flex gap-4 items-start">
+                                            <div className="flex flex-col items-center">
+                                                <div className="w-2 h-2 rounded-full bg-blue-500 mt-2"></div>
+                                                <div className="w-0.5 h-full bg-gray-200 -mb-2"></div>
+                                            </div>
+                                            <div className="bg-gray-50 p-3 rounded-lg flex-1 border border-gray-100 shadow-sm">
+                                                <p className="text-xs text-gray-500 font-bold">{edicao.acao} em {edicao.dataHora}</p>
+                                                <p className="text-sm font-bold text-blue-900">Editado por: {edicao.usuario}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                         )}
+
                       </div>
                       
-                      {/* BOTÕES DE AÇÃO NO HISTÓRICO - GRID PARA MOBILE */}
+                      {/* BOTÕES DE AÇÃO NO HISTÓRICO - ADICIONADO BOTÃO EDITAR */}
                       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 pb-8">
+                            {/* --- BOTÃO DE EDITAR NOVO --- */}
+                            <button onClick={() => handleEditReport(selectedReport)} className="col-span-1 sm:col-span-2 w-full bg-yellow-500 text-white px-4 py-3 rounded-lg font-bold shadow hover:bg-yellow-600 flex items-center justify-center gap-2 border-b-4 border-yellow-700 active:border-b-0 active:translate-y-1 transition-all">
+                                ✏️ EDITAR ESTE RELATÓRIO
+                            </button>
+
                             <button onClick={() => handleResendWhatsApp(selectedReport)} className="w-full bg-green-600 text-white px-4 py-3 rounded-lg font-bold shadow hover:bg-green-700 flex items-center justify-center gap-2">📱 Enviar WhatsApp</button>
                             <button onClick={() => gerarPDF(selectedReport)} className="w-full bg-red-600 text-white px-4 py-3 rounded-lg font-bold shadow hover:bg-red-700 flex items-center justify-center gap-2">📄 Baixar PDF</button>
                             <button onClick={() => gerarWord(selectedReport)} className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg font-bold shadow hover:bg-blue-700 flex items-center justify-center gap-2">📄 Baixar Word</button>
@@ -846,6 +940,20 @@ export default function Home() {
 
         {view === 'form' && (
             <form className="p-6 space-y-8" onSubmit={(e) => e.preventDefault()}>
+            
+            {/* AVISO DE MODO EDIÇÃO */}
+            {formData.id && (
+                <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-900 p-4 mb-4 rounded shadow flex justify-between items-center animate-pulse">
+                    <div>
+                        <p className="font-bold">⚠️ MODO DE EDIÇÃO</p>
+                        <p className="text-sm">Você está alterando um relatório existente.</p>
+                    </div>
+                    <button onClick={handleCancelEdit} className="bg-white text-yellow-700 px-3 py-1 rounded border border-yellow-300 font-bold hover:bg-yellow-50 text-sm">
+                        CANCELAR
+                    </button>
+                </div>
+            )}
+
             <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 flex justify-between items-center">
                 <div><label className="block text-xs font-bold text-blue-800 uppercase mb-1">Data</label><input type="text" name="data" value={formData.data} onChange={handleChange} className="w-40 p-2 border rounded bg-white font-mono text-gray-900" /></div>
                 <div className="text-xs text-blue-600 font-semibold hidden md:block">Logado como: {session.user.email}</div>
@@ -938,7 +1046,21 @@ export default function Home() {
             </section>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Supervisor Diurno</label><input placeholder="Assinatura..." name="assinaturaDiurno" value={formData.assinaturaDiurno} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 text-gray-900" /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Supervisor Noturno</label><input placeholder="Assinatura..." name="assinaturaNoturno" value={formData.assinaturaNoturno} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 text-gray-900" /></div></div>
-            <div className="pt-6 pb-8 grid grid-cols-1 md:grid-cols-2 gap-4"><div className="flex gap-2"><button onClick={() => gerarWord(formData)} className="flex-1 bg-blue-600 text-white font-bold py-4 rounded-xl shadow hover:bg-blue-700 transition">📄 Word</button><button onClick={() => gerarPDF(formData)} className="flex-1 bg-red-600 text-white font-bold py-4 rounded-xl shadow hover:bg-red-700 transition">📄 PDF</button></div><div className="flex gap-2"><button onClick={handleSalvarApenas} className="flex-1 bg-gray-700 text-white font-bold py-4 rounded-xl shadow hover:bg-gray-800 transition flex items-center justify-center gap-2">💾 Salvar</button><button onClick={handleSaveAndSend} className="flex-1 bg-green-600 text-white font-bold py-4 rounded-xl shadow hover:bg-green-700 transition flex items-center justify-center gap-2">📱 Zap + Salvar</button></div></div>
+            
+            <div className="pt-6 pb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex gap-2">
+                    <button onClick={() => gerarWord(formData)} className="flex-1 bg-blue-600 text-white font-bold py-4 rounded-xl shadow hover:bg-blue-700 transition">📄 Word</button>
+                    <button onClick={() => gerarPDF(formData)} className="flex-1 bg-red-600 text-white font-bold py-4 rounded-xl shadow hover:bg-red-700 transition">📄 PDF</button>
+                </div>
+                <div className="flex gap-2">
+                    <button onClick={handleSalvarApenas} className={`flex-1 ${formData.id ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-gray-700 hover:bg-gray-800'} text-white font-bold py-4 rounded-xl shadow transition flex items-center justify-center gap-2`}>
+                        {formData.id ? '💾 Salvar Alteração' : '💾 Salvar Novo'}
+                    </button>
+                    <button onClick={handleSaveAndSend} className="flex-1 bg-green-600 text-white font-bold py-4 rounded-xl shadow hover:bg-green-700 transition flex items-center justify-center gap-2">
+                        📱 Zap + Salvar
+                    </button>
+                </div>
+            </div>
             </form>
         )}
       </div>
