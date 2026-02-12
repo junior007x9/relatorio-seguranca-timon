@@ -8,7 +8,6 @@ import {
 } from 'docx';
 import { saveAs } from 'file-saver';
 
-// --- CORREÇÃO DO ERRO VERCEL (PDFMAKE) ---
 // @ts-ignore
 import pdfMake from "pdfmake/build/pdfmake";
 // @ts-ignore
@@ -32,7 +31,7 @@ const TEMPO_AVISO = 4.5 * 60 * 1000;
 
 // --- TIPAGEM DE DADOS ---
 type AlojamentoDados = { qtd: string; nomes: string; };
-type HistoricoEdicao = { usuario: string; dataHora: string; acao: string; }; // Nova Tipagem
+type HistoricoEdicao = { usuario: string; dataHora: string; acao: string; }; 
 
 type RelatorioData = {
   id?: number; created_at?: string; data: string; supervisor: string; educadores: string; apoio: string; plantao: string;
@@ -40,6 +39,11 @@ type RelatorioData = {
   celular: string; radioCelular: string; radioHT: string; cadeados: string; pendrives: string;
   alojamentos: { [key: string]: AlojamentoDados };
   resumoPlantao: string; assinaturaDiurno: string; assinaturaNoturno: string;
+  // NOVOS CAMPOS
+  assinaturaDiurnoImg: string; 
+  assinaturaNoturnoImg: string;
+  fotos: string[]; // Array de Base64
+  
   temSaida: boolean; saidaAdolescente: string; saidaEducador: string; saidaHorario: string;
   temFolga: boolean; educadoresFolga: string;
   temFerias: boolean; educadoresFerias: string;
@@ -49,10 +53,9 @@ type RelatorioData = {
   servicosGerais: string;
   temApoioSemiliberdade: boolean;
   educadoresApoioSemiliberdade: string;
-  historicoEdicoes: HistoricoEdicao[]; // Novo Campo
+  historicoEdicoes: HistoricoEdicao[];
 };
 
-// --- ESTADO INICIAL (RESET) ---
 const INITIAL_FORM_DATA: RelatorioData = {
     data: new Date().toLocaleDateString('pt-BR'),
     coordenador: 'Erasmo Leite', 
@@ -66,6 +69,9 @@ const INITIAL_FORM_DATA: RelatorioData = {
       '05': { qtd: '0', nomes: '' }, '06': { qtd: '0', nomes: '' }, '07': { qtd: '0', nomes: '' }, '08': { qtd: '0', nomes: '' }
     },
     resumoPlantao: '', assinaturaDiurno: '', assinaturaNoturno: '',
+    // INICIALIZAÇÃO NOVOS CAMPOS
+    assinaturaDiurnoImg: '', assinaturaNoturnoImg: '', fotos: [],
+    
     temSaida: false, saidaAdolescente: '', saidaEducador: '', saidaHorario: '',
     temFolga: false, educadoresFolga: '',
     temFerias: false, educadoresFerias: '',
@@ -73,8 +79,90 @@ const INITIAL_FORM_DATA: RelatorioData = {
     historicoEdicoes: []
 };
 
+// --- COMPONENTE DE ASSINATURA (CANVAS) ---
+// Este componente cria a área de desenho
+const SignaturePad = ({ label, onSave, initialImage }: { label: string, onSave: (data: string) => void, initialImage: string }) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [isDrawing, setIsDrawing] = useState(false);
+
+    // Carrega assinatura se já existir (modo edição)
+    useEffect(() => {
+        if (initialImage && canvasRef.current) {
+            const ctx = canvasRef.current.getContext('2d');
+            const img = new Image();
+            img.onload = () => ctx?.drawImage(img, 0, 0);
+            img.src = initialImage;
+        }
+    }, [initialImage]);
+
+    const getCoords = (e: any) => {
+        if (!canvasRef.current) return { x: 0, y: 0 };
+        const rect = canvasRef.current.getBoundingClientRect();
+        // Suporte para Mouse e Touch (Celular)
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return { x: clientX - rect.left, y: clientY - rect.top };
+    };
+
+    const startDrawing = (e: any) => {
+        setIsDrawing(true);
+        const ctx = canvasRef.current?.getContext('2d');
+        if (ctx) {
+            const { x, y } = getCoords(e);
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#000';
+        }
+    };
+
+    const draw = (e: any) => {
+        if (!isDrawing || !canvasRef.current) return;
+        if(e.type === 'touchmove') e.preventDefault(); // Evita scroll da tela ao assinar
+        const ctx = canvasRef.current.getContext('2d');
+        if (ctx) {
+            const { x, y } = getCoords(e);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+        }
+    };
+
+    const endDrawing = () => {
+        if (isDrawing && canvasRef.current) {
+            setIsDrawing(false);
+            // Salva a imagem em base64
+            onSave(canvasRef.current.toDataURL("image/png"));
+        }
+    };
+
+    const clear = () => {
+        const ctx = canvasRef.current?.getContext('2d');
+        if (ctx && canvasRef.current) {
+            ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+            onSave('');
+        }
+    };
+
+    return (
+        <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-gray-500 uppercase">{label}</label>
+            <div className="border-2 border-gray-300 rounded bg-white touch-none">
+                <canvas 
+                    ref={canvasRef} 
+                    width={300} 
+                    height={150} 
+                    className="w-full cursor-crosshair bg-white"
+                    onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={endDrawing} onMouseLeave={endDrawing}
+                    onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={endDrawing}
+                />
+            </div>
+            <button type="button" onClick={clear} className="text-xs text-red-600 font-bold underline self-end">Limpar Assinatura</button>
+        </div>
+    );
+};
+
 export default function Home() {
-  // Estados de Autenticação
   const [session, setSession] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [loginEmail, setLoginEmail] = useState('');
@@ -82,26 +170,21 @@ export default function Home() {
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
    
-  // Estados da Aplicação
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<'form' | 'history' | 'admin'>('form');
   const [historico, setHistorico] = useState<RelatorioData[]>([]);
   const [selectedReport, setSelectedReport] = useState<RelatorioData | null>(null);
    
-  // Controle de Inatividade
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
   const logoutTimerRef = useRef<NodeJS.Timeout | null>(null);
   const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Controle do Microfone
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef<any>(null);
   const baseTextRef = useRef<string>(''); 
 
-  // Estado do Formulário
   const [formData, setFormData] = useState<RelatorioData>(INITIAL_FORM_DATA);
 
-  // --- HELPER: CALCULAR TOTAL ADOLESCENTES ---
   const calcularTotalAdolescentes = (dados: RelatorioData) => {
     return Object.values(dados.alojamentos).reduce((acc, curr) => {
       const qtd = parseInt(curr.qtd) || 0;
@@ -109,7 +192,6 @@ export default function Home() {
     }, 0);
   };
 
-  // --- LÓGICA DE MICROFONE ---
   const toggleRecording = () => {
     if (isRecording) {
       if (recognitionRef.current) {
@@ -157,7 +239,6 @@ export default function Home() {
     setIsRecording(true);
   };
 
-  // --- LÓGICA DE INATIVIDADE E LOGOUT ---
   const handleLogout = useCallback(async () => {
     if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
     if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
@@ -208,7 +289,6 @@ export default function Home() {
     return () => { authListener.subscription.unsubscribe(); };
   }, [handleLogout]);
 
-  // --- HANDLERS ---
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
@@ -233,23 +313,48 @@ export default function Home() {
     setFormData(prev => ({ ...prev, alojamentos: { ...prev.alojamentos, [id]: { ...prev.alojamentos[id], [field]: value } } }));
   };
 
-  // --- FUNÇÃO PARA EDITAR RELATÓRIO ---
   const handleEditReport = (report: RelatorioData) => {
-    setFormData({
-        ...report
-    });
+    setFormData({ ...report });
     setSelectedReport(null);
     setView('form');
-    // Rolar para o topo
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // --- FUNÇÃO PARA CANCELAR EDIÇÃO ---
   const handleCancelEdit = () => {
       if(confirm("Tem certeza que deseja cancelar a edição? Os dados não salvos serão perdidos.")) {
           setFormData(INITIAL_FORM_DATA);
           window.scrollTo({ top: 0, behavior: 'smooth' });
       }
+  };
+
+  // --- LÓGICA DE UPLOAD DE FOTOS ---
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files[0]) {
+          const file = e.target.files[0];
+          const reader = new FileReader();
+          reader.onload = (event: any) => {
+              const img = new Image();
+              img.onload = () => {
+                  // Redimensiona imagem para economizar espaço no banco (Max 800px)
+                  const canvas = document.createElement('canvas');
+                  const MAX_WIDTH = 800;
+                  const scaleSize = MAX_WIDTH / img.width;
+                  canvas.width = MAX_WIDTH;
+                  canvas.height = img.height * scaleSize;
+                  const ctx = canvas.getContext("2d");
+                  ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+                  // Comprime para JPEG 70%
+                  const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+                  setFormData(prev => ({ ...prev, fotos: [...prev.fotos, dataUrl] }));
+              };
+              img.src = event.target.result;
+          };
+          reader.readAsDataURL(file);
+      }
+  };
+
+  const removePhoto = (index: number) => {
+      setFormData(prev => ({ ...prev, fotos: prev.fotos.filter((_, i) => i !== index) }));
   };
 
   const carregarImagemBuffer = async (url: string) => { try { const r = await fetch(url); if (!r.ok) return null; const b = await r.blob(); return await b.arrayBuffer(); } catch { return null; } };
@@ -261,28 +366,42 @@ export default function Home() {
     });
   };
 
-  // --- GERADOR WHATSAPP ---
+  // --- LIMPEZA DE TEXTO (Mantida a versão corrigida do último prompt) ---
+  const limparTexto = (texto: string) => {
+      if (!texto) return "";
+      const limpo = texto
+        .replace(/[^\w\sÀ-ÿ.,;:\-()\/%@!?:'"\n]/g, "") 
+        .replace(/As1|Asl|As\|/g, "Às")   
+        .replace(/As\s/g, "Às ") 
+        .replace(/[ \t]+/g, " ");
+      return limpo.trim();
+  };
+
+  const converterParaLista = (texto: string) => {
+      if (!texto) return [];
+      const limpo = limparTexto(texto);
+      const linhas = limpo.split(/\n/);
+      return linhas.filter(l => l.trim().length > 0).map(l => l.trim());
+  };
+
   const gerarTextoWhatsApp = (dados: RelatorioData) => {
     const total = calcularTotalAdolescentes(dados);
     let texto = `*RELATÓRIO EQUIPE DE SEGURANÇA - CSIPRC*\n📅 Data: ${dados.data}\n`;
     texto += `\n*👮 COORDENAÇÃO*\nCoordenador de Segurança: ${dados.coordenador}\nSupervisor: ${dados.supervisor}`;
-     
+    // ... (restante do código do whatsapp igual)
     texto += `\n\n*👥 EDUCADORES*\n${dados.educadores}`;
     if (dados.temFolga) texto += `\n🏖️ Folga: ${dados.educadoresFolga}`;
     if (dados.temFerias) texto += `\n✈️ Férias: ${dados.educadoresFerias}`;
     if (dados.temApoioSemiliberdade) texto += `\n🔄 Apoio Semiliberdade: ${dados.educadoresApoioSemiliberdade}`;
-
     texto += `\n\n*🤝 EQUIPE DE APOIO*`;
     texto += `\nPortaria: ${dados.portaria || '-'}`;
     texto += `\nCozinha: ${dados.cozinha || '-'}`;
     texto += `\nServ. Gerais: ${dados.servicosGerais || '-'}`;
     texto += `\nOutros Apoios: ${dados.apoio || '-'}`;
     texto += `\n\n🕒 Plantão: ${dados.plantao}`;
-     
     if (dados.temSaida) { 
         texto += `\n\n*🚨 SAÍDA EXTERNA*\n👤 Adolescente: ${dados.saidaAdolescente}\n👮 Educador: ${dados.saidaEducador}\n⏰ Horário: ${dados.saidaHorario}`; 
     }
-
     texto += `\n\n*🛡️ MATERIAIS*`;
     texto += `\n🔹 Tonfas: ${dados.tonfas || '0'} | Algemas: ${dados.algemas || '0'}`;
     texto += `\n🔹 Celular: ${dados.celular || '0'} | Rádio HT: ${dados.radioHT || '0'}`;
@@ -290,21 +409,21 @@ export default function Home() {
     texto += `\n🔹 Cadeados: ${dados.cadeados || '0'} | Pendrives: ${dados.pendrives || '0'}`;
     texto += `\n🔹 Escudos: ${dados.escudos || '0'} | Lanternas: ${dados.lanternas || '0'}`;
     texto += `\n🔹 Rádio Cel: ${dados.radioCelular || '0'}`;
-
     texto += `\n\n*🔢 ADOLESCENTES*`;
     ['01', '02', '03', '04', '05', '06', '07', '08'].forEach(num => {
         const al = dados.alojamentos[num];
         if (al) { texto += `\n🏠 AL-${num}: ${al.qtd || '0'} ${al.nomes ? `(${al.nomes})` : ''}`; }
     });
-     
     texto += `\n\n*TOTAL: ${total} adolescentes*`;
-    texto += `\n\n*📝 RESUMO DO PLANTÃO*\n${dados.resumoPlantao || 'Sem observações.'}`;
+    
+    // Lista Limpa
+    const linhasResumo = converterParaLista(dados.resumoPlantao);
+    texto += `\n\n*📝 RESUMO DO PLANTÃO*\n` + (linhasResumo.length > 0 ? linhasResumo.map(l => `• ${l}`).join('\n') : 'Sem observações.');
     texto += `\n\n*✍️ ASSINATURAS*\n☀️ Diurno: ${dados.assinaturaDiurno}\n🌙 Noturno: ${dados.assinaturaNoturno}`;
-
     return texto;
   };
 
-  // --- GERADOR PDF ---
+  // --- GERADOR PDF COM FOTOS E ASSINATURAS ---
   const gerarPDF = async (dataToPrint?: RelatorioData) => {
     const dados = dataToPrint || formData;
     const total = calcularTotalAdolescentes(dados);
@@ -312,11 +431,9 @@ export default function Home() {
     try {
       const logoBase64 = await getBase64ImageFromURL('/logo.png');
       const contentArray: any[] = [
-          // LOGO AUMENTADO PARA 320
           logoBase64 ? { image: logoBase64, width: 320, alignment: 'center', margin: [0, 0, 0, 5] } : {},
           { text: 'RELATÓRIO EQUIPE DE SEGURANÇA – CSIPRC', style: 'header', alignment: 'center' },
           { text: `Data: ${dados.data}`, style: 'subheader', alignment: 'center', margin: [0, 0, 0, 10] }, 
-          // Informações em 2 colunas para economizar espaço vertical
           {
             columns: [
               { width: '*', stack: [
@@ -331,15 +448,11 @@ export default function Home() {
           }
       ];
 
-      // Linha compacta para extras
       const extras = [];
       if (dados.temFolga) extras.push({ text: `FOLGA: ${dados.educadoresFolga}`, fontSize: 9 });
       if (dados.temFerias) extras.push({ text: `FÉRIAS: ${dados.educadoresFerias}`, fontSize: 9 });
       if (dados.temApoioSemiliberdade) extras.push({ text: `APOIO SEMI: ${dados.educadoresApoioSemiliberdade}`, fontSize: 9 });
-      
-      if(extras.length > 0) {
-         contentArray.push({ columns: extras, margin: [0, 2] });
-      }
+      if(extras.length > 0) contentArray.push({ columns: extras, margin: [0, 2] });
 
       contentArray.push(
           { text: 'EQUIPE DE APOIO', style: 'sectionHeader', alignment: 'center' },
@@ -379,7 +492,6 @@ export default function Home() {
           { text: 'ADOLESCENTES POR ALOJAMENTO', style: 'sectionHeader', alignment: 'center' }
       );
 
-      // Alojamentos em 2 colunas para economizar espaço
       const alojamentosLeft = [];
       const alojamentosRight = [];
       ['01', '02', '03', '04'].forEach(num => alojamentosLeft.push({ text: [{ text: `AL-${num}: `, bold: true }, { text: `${dados.alojamentos[num].qtd || '0'} - ` }, { text: dados.alojamentos[num].nomes || '', italics: true }], fontSize: 9, margin: [0, 1] }));
@@ -392,23 +504,18 @@ export default function Home() {
           ]
       });
 
-      contentArray.push({
-          text: `TOTAL DE ADOLESCENTES: ${total}`,
-          bold: true,
-          alignment: 'right',
-          fontSize: 11,
-          margin: [0, 2, 0, 5],
-          color: '#1e3a8a'
-      });
+      contentArray.push({ text: `TOTAL DE ADOLESCENTES: ${total}`, bold: true, alignment: 'right', fontSize: 11, margin: [0, 2, 0, 5], color: '#1e3a8a' });
 
-      // --- CORREÇÃO: O TEXTO AGORA PODE QUEBRAR A PÁGINA ---
-      // 1. Título do Resumo
       contentArray.push({ text: 'RESUMO DO PLANTÃO', style: 'sectionHeader', alignment: 'center', margin: [0, 5, 0, 2] });
       
-      // 2. O texto longo (sem estar preso em blocos inquebráveis)
-      contentArray.push({ text: dados.resumoPlantao || '', fontSize: 10, alignment: 'justify', margin: [0, 0, 0, 10] });
+      const linhasResumo = converterParaLista(dados.resumoPlantao);
+      if (linhasResumo.length > 0) {
+          contentArray.push({ ul: linhasResumo, fontSize: 10, margin: [10, 0, 0, 10], alignment: 'justify' });
+      } else {
+          contentArray.push({ text: "Sem observações.", fontSize: 10, alignment: 'center', margin: [0, 0, 0, 10] });
+      }
 
-      // 3. Linha e Assinaturas (mantendo APENAS as assinaturas juntas)
+      // --- ASSINATURAS (IMAGENS) ---
       contentArray.push({ 
           unbreakable: true, 
           stack: [
@@ -416,11 +523,13 @@ export default function Home() {
             {
                 columns: [
                     { width: '*', stack: [
+                        dados.assinaturaDiurnoImg ? { image: dados.assinaturaDiurnoImg, width: 100, alignment: 'center' } : {},
                         { text: '_________________________', alignment: 'center' },
                         { text: dados.assinaturaDiurno || '(Sem nome)', bold: true, alignment: 'center', fontSize: 9 },
                         { text: 'Supervisor Diurno', alignment: 'center', fontSize: 8 }
                     ]},
                     { width: '*', stack: [
+                        dados.assinaturaNoturnoImg ? { image: dados.assinaturaNoturnoImg, width: 100, alignment: 'center' } : {},
                         { text: '_________________________', alignment: 'center' },
                         { text: dados.assinaturaNoturno || '(Sem nome)', bold: true, alignment: 'center', fontSize: 9 },
                         { text: 'Supervisor Noturno', alignment: 'center', fontSize: 8 }
@@ -430,7 +539,23 @@ export default function Home() {
           ]
       });
 
-      // MARGENS EXTREMAMENTE REDUZIDAS (15px) PARA CABER TUDO
+      // --- FOTOS ANEXADAS ---
+      if (dados.fotos && dados.fotos.length > 0) {
+          contentArray.push({ text: 'REGISTROS FOTOGRÁFICOS', style: 'sectionHeader', alignment: 'center', pageBreak: 'before', margin: [0, 10, 0, 10] });
+          const fotosGrid = [];
+          // Agrupa fotos em pares
+          for (let i = 0; i < dados.fotos.length; i += 2) {
+              const row = {
+                  columns: [
+                      { image: dados.fotos[i], width: 250, margin: [0, 5, 5, 5] },
+                      dados.fotos[i+1] ? { image: dados.fotos[i+1], width: 250, margin: [5, 5, 0, 5] } : {}
+                  ]
+              };
+              fotosGrid.push(row);
+          }
+          contentArray.push(fotosGrid);
+      }
+
       const docDefinition: any = { 
           pageSize: 'A4', 
           pageMargins: [15, 15, 15, 15], 
@@ -447,7 +572,7 @@ export default function Home() {
     } catch { alert("Erro ao gerar PDF."); }
   };
 
-  // --- GERADOR WORD ---
+  // --- GERADOR WORD COM FOTOS E ASSINATURAS ---
   const gerarWord = async (dataToPrint?: RelatorioData) => {
     const dados = dataToPrint || formData;
     const total = calcularTotalAdolescentes(dados);
@@ -455,7 +580,7 @@ export default function Home() {
     try {
         const logoBuffer = await carregarImagemBuffer('/logo.png');
         const cellStyle = { borders: { top: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" }, bottom: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" }, left: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" }, right: { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" } }, margins: { top: 50, bottom: 50, left: 50, right: 50 } };
-        const noSpacing = { after: 0, before: 0 }; // Remove espaços entre parágrafos
+        const noSpacing = { after: 0, before: 0 }; 
         
         const childrenParagraphs = [
               new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: "RELATÓRIO EQUIPE DE SEGURANÇA – CSIPRC", bold: true, size: 24 }) ], spacing: noSpacing }),
@@ -465,6 +590,7 @@ export default function Home() {
               new Paragraph({ children: [new TextRun({ text: "EDUCADORES: ", bold: true }), new TextRun(dados.educadores)], spacing: noSpacing }),
         ];
 
+        // ... (Dados extras) ...
         if (dados.temFolga) childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "FOLGA: ", bold: true }), new TextRun(dados.educadoresFolga)], spacing: noSpacing }));
         if (dados.temFerias) childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "FÉRIAS: ", bold: true }), new TextRun(dados.educadoresFerias)], spacing: noSpacing }));
         if (dados.temApoioSemiliberdade) childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "APOIO SEMI: ", bold: true }), new TextRun(dados.educadoresApoioSemiliberdade)], spacing: noSpacing }));
@@ -511,25 +637,52 @@ export default function Home() {
         );
 
         childrenParagraphs.push(
-              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "RESUMO DO PLANTÃO", bold: true, underline: {} })], keepNext: true, spacing: noSpacing }),
-              
-              // --- CORREÇÃO WORD: Removemos keepNext para permitir quebra de página no texto longo ---
-              new Paragraph({ children: [new TextRun({ text: dados.resumoPlantao || "", size: 18 })], spacing: { after: 200 } }),
-              
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "RESUMO DO PLANTÃO", bold: true, underline: {} })], keepNext: true, spacing: noSpacing })
+        );
+
+        // --- CORREÇÃO WORD: LISTA DE TÓPICOS ---
+        const linhasResumo = converterParaLista(dados.resumoPlantao);
+
+        if (linhasResumo.length > 0) {
+            linhasResumo.forEach(linha => {
+                childrenParagraphs.push(
+                    new Paragraph({ 
+                        children: [new TextRun({ text: linha, size: 18 })], 
+                        bullet: { level: 0 }, 
+                        spacing: { after: 100 }
+                    })
+                );
+            });
+        } else {
+            childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "Sem observações.", size: 18 })] }));
+        }
+
+        childrenParagraphs.push(
               new Paragraph({ text: "\n", keepNext: true, spacing: noSpacing }), 
               new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "___________________________        ___________________________" })], keepNext: true, spacing: noSpacing }),
               new Paragraph({ alignment: AlignmentType.CENTER, children: [ new TextRun({ text: `${dados.assinaturaDiurno || "(Sem nome)"}             ${dados.assinaturaNoturno || "(Sem nome)"}`, bold: true, size: 16 }) ], keepNext: true, spacing: noSpacing }),
               new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Supervisor Diurno                      Supervisor Noturno", size: 14 })], keepNext: true })
         );
 
-        // LOGO AUMENTADO PARA 650 NO WORD
+        // --- FOTOS NO WORD ---
+        if(dados.fotos && dados.fotos.length > 0) {
+            childrenParagraphs.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "ANEXOS FOTOGRÁFICOS", bold: true, size: 20 })], pageBreakBefore: true }));
+            
+            for(const foto of dados.fotos) {
+                // Word requer imagem como Buffer/Blob
+                const res = await fetch(foto);
+                const buff = await res.blob();
+                childrenParagraphs.push(new Paragraph({ children: [new ImageRun({ data: await buff.arrayBuffer(), transformation: { width: 400, height: 300 } })], alignment: AlignmentType.CENTER }));
+                childrenParagraphs.push(new Paragraph({ text: "\n" }));
+            }
+        }
+
         const doc = new Document({ sections: [{ properties: { page: { margin: { top: 500, bottom: 500, left: 500, right: 500 } } } as any, headers: { default: new Header({ children: [ new Paragraph({ alignment: AlignmentType.CENTER, children: [ logoBuffer ? new ImageRun({ data: new Uint8Array(logoBuffer), transformation: { width: 650, height: 160 } }) : new TextRun("") ] }), new Paragraph({ text: "" }) ] }) }, children: childrenParagraphs }] });
         const blob = await Packer.toBlob(doc);
         saveAs(blob, `Relatorio_${dados.data.replace(/\//g, '-')}.docx`);
     } catch { alert("Erro ao criar o arquivo do Word."); }
   };
 
-  // --- DADOS DO SUPABASE ---
   const fetchHistory = async () => {
     setLoading(true);
     const { data } = await supabase.from('relatorios').select('*').order('created_at', { ascending: false });
@@ -547,6 +700,12 @@ export default function Home() {
         resumoPlantao: item.resumo_plantao, 
         assinaturaDiurno: item.plantao_diurno, 
         assinaturaNoturno: item.plantao_noturno, 
+        
+        // Mapeamento novos campos
+        assinaturaDiurnoImg: item.assinatura_diurno_img || '',
+        assinaturaNoturnoImg: item.assinatura_noturno_img || '',
+        fotos: item.fotos || [],
+
         alojamentos: item.alojamentos || {},
         temSaida: item.tem_saida || false, 
         saidaAdolescente: item.saida_adolescente || '', 
@@ -558,21 +717,17 @@ export default function Home() {
         educadoresFerias: item.educadores_ferias || '',
         temApoioSemiliberdade: item.tem_apoio_semiliberdade || false, 
         educadoresApoioSemiliberdade: item.educadores_apoio_semiliberdade || '',
-        
-        // --- CORREÇÃO DE MAPEAMENTO DOS MATERIAIS ---
         tonfas: item.tonfas,
         algemas: item.algemas,
-        chavesAcesso: item.chaves_acesso,  // Mapeando snake_case para camelCase
-        chavesAlgemas: item.chaves_algemas, // Mapeando snake_case para camelCase
+        chavesAcesso: item.chaves_acesso,
+        chavesAlgemas: item.chaves_algemas,
         escudos: item.escudos,
         lanternas: item.lanternas,
         celular: item.celular,
-        radioCelular: item.radio_celular, // Mapeando snake_case para camelCase
-        radioHT: item.radio_ht,           // Mapeando snake_case para camelCase
+        radioCelular: item.radio_celular,
+        radioHT: item.radio_ht,
         cadeados: item.cadeados,
         pendrives: item.pendrives,
-        
-        // --- HISTÓRICO DE EDIÇÕES ---
         historicoEdicoes: item.historico_edicoes || []
       })));
     }
@@ -588,10 +743,7 @@ export default function Home() {
   };
 
   const salvarNoSupabase = async () => {
-    // --- LÓGICA DE AUDIT LOG (QUEM EDITOU) ---
     const novoHistorico = [...(formData.historicoEdicoes || [])];
-    
-    // Se for uma edição (tem ID), adiciona registro ao histórico
     if (formData.id) {
         novoHistorico.push({
             usuario: session.user.email,
@@ -600,7 +752,6 @@ export default function Home() {
         });
     }
 
-    // PREPARA O OBJETO PARA O BANCO DE DADOS
     const payload = {
       data_plantao: formData.data, educadores: formData.educadores, supervisor: formData.supervisor, 
       coordenador: formData.coordenador, 
@@ -611,21 +762,22 @@ export default function Home() {
       plantao: formData.plantao,
       tonfas: formData.tonfas, algemas: formData.algemas, chaves_acesso: formData.chavesAcesso, chaves_algemas: formData.chavesAlgemas, escudos: formData.escudos, lanternas: formData.lanternas, celular: formData.celular, radio_celular: formData.radioCelular, radio_ht: formData.radioHT, cadeados: formData.cadeados, pendrives: formData.pendrives,
       alojamentos: formData.alojamentos, resumo_plantao: formData.resumoPlantao, plantao_diurno: formData.assinaturaDiurno, plantao_noturno: formData.assinaturaNoturno,
+      
+      // NOVOS CAMPOS SALVOS
+      assinatura_diurno_img: formData.assinaturaDiurnoImg,
+      assinatura_noturno_img: formData.assinaturaNoturnoImg,
+      fotos: formData.fotos,
+
       tem_saida: formData.temSaida, saida_adolescente: formData.saidaAdolescente, saida_educador: formData.saidaEducador, saida_horario: formData.saidaHorario,
       tem_folga: formData.temFolga, educadores_folga: formData.educadoresFolga,
       tem_ferias: formData.temFerias, educadores_ferias: formData.educadoresFerias,
       tem_apoio_semiliberdade: formData.temApoioSemiliberdade, educadores_apoio_semiliberdade: formData.educadoresApoioSemiliberdade,
-      
-      // Salva o histórico atualizado
       historico_edicoes: novoHistorico
     };
 
-    // --- LÓGICA DE UPDATE OU INSERT ---
     if (formData.id) {
-        // Se tem ID, atualiza
         return await supabase.from('relatorios').update(payload).eq('id', formData.id);
     } else {
-        // Se não tem ID, cria novo
         return await supabase.from('relatorios').insert([payload]);
     }
   };
@@ -634,7 +786,6 @@ export default function Home() {
     setLoading(true);
     const { error } = await salvarNoSupabase();
     setLoading(false);
-    
     if (error) {
         alert("Erro ao salvar: " + error.message);
     } else {
@@ -647,7 +798,6 @@ export default function Home() {
     const { error } = await salvarNoSupabase();
     setLoading(false);
     if (error) { alert("Erro ao salvar: " + error.message); return; }
-     
     const texto = gerarTextoWhatsApp(formData);
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`, '_blank');
   };
@@ -657,7 +807,6 @@ export default function Home() {
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`, '_blank');
   };
 
-  // --- RENDERIZAÇÃO ---
   if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-gray-100 font-bold text-gray-900">Carregando...</div>;
 
   if (!session) {
@@ -678,7 +827,6 @@ export default function Home() {
   }
 
   const isUserAdmin = session.user.email === ADMIN_EMAIL;
-  // Total para exibir na tela do formulário também
   const totalAtual = calcularTotalAdolescentes(formData);
 
   return (
@@ -695,7 +843,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* HEADER OTIMIZADO */}
       <div className="bg-blue-900 text-white p-3 sticky top-0 z-50 shadow-md flex flex-wrap justify-between items-center gap-2">
         <div className="flex items-center gap-2 overflow-hidden mr-2">
             <span className="text-xl">🛡️</span>
@@ -799,7 +946,6 @@ export default function Home() {
                              {/* NOVA VISUALIZAÇÃO DE MATERIAIS PARA EVITAR 'SOPA' NO MOBILE */}
                              <h3 className="text-blue-900 font-bold border-b border-gray-300 mb-3 uppercase">🛡️ Materiais</h3>
                              <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
-                                {/* CARD ESTILO DASHBOARD: NOME PEQUENO EM CIMA, VALOR GRANDE EM BAIXO */}
                                 <div className="bg-gray-50 p-2 rounded border flex flex-col justify-between h-full">
                                     <span className="text-gray-500 font-bold uppercase text-[10px] sm:text-xs">Tonfas</span>
                                     <span className="font-bold text-lg text-gray-900">{selectedReport.tonfas || '0'}</span>
@@ -863,7 +1009,9 @@ export default function Home() {
                          <div className="mb-6">
                              <h3 className="text-blue-900 font-bold border-b border-gray-300 mb-3 uppercase">📝 Resumo do Plantão</h3>
                              <div className="bg-gray-50 p-4 rounded border border-gray-200 whitespace-pre-wrap min-h-[100px] text-gray-900 break-words overflow-hidden">
-                                {selectedReport.resumoPlantao || "Sem observações."}
+                                {converterParaLista(selectedReport.resumoPlantao || "Sem observações.").map((l, i) => (
+                                    <div key={i} className="mb-1">• {l}</div>
+                                ))}
                              </div>
                          </div>
                          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8 text-center">
@@ -871,15 +1019,32 @@ export default function Home() {
                                  <div className="border-b border-black mb-2 mx-10"></div>
                                  <p className="font-bold">{selectedReport.assinaturaDiurno || "(Sem Assinatura)"}</p>
                                  <p className="text-xs text-gray-500 uppercase">Supervisor Diurno</p>
+                                 {selectedReport.assinaturaDiurnoImg && (
+                                     <img src={selectedReport.assinaturaDiurnoImg} className="mt-2 h-16 mx-auto border border-gray-200" alt="Assinatura Diurno" />
+                                 )}
                              </div>
                              <div>
                                  <div className="border-b border-black mb-2 mx-10"></div>
                                  <p className="font-bold">{selectedReport.assinaturaNoturno || "(Sem Assinatura)"}</p>
                                  <p className="text-xs text-gray-500 uppercase">Supervisor Noturno</p>
+                                 {selectedReport.assinaturaNoturnoImg && (
+                                     <img src={selectedReport.assinaturaNoturnoImg} className="mt-2 h-16 mx-auto border border-gray-200" alt="Assinatura Noturno" />
+                                 )}
                              </div>
                          </div>
 
-                         {/* --- LINHA DO TEMPO (AUDIT LOG) AQUI --- */}
+                         {/* EXIBIÇÃO DE FOTOS NO HISTÓRICO */}
+                         {selectedReport.fotos && selectedReport.fotos.length > 0 && (
+                             <div className="mt-8 border-t pt-4">
+                                 <h3 className="text-blue-900 font-bold mb-3 uppercase">📷 Registros Fotográficos</h3>
+                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                     {selectedReport.fotos.map((foto, index) => (
+                                         <img key={index} src={foto} alt={`Foto ${index}`} className="w-full h-32 object-cover rounded border border-gray-300" />
+                                     ))}
+                                 </div>
+                             </div>
+                         )}
+
                          {selectedReport.historicoEdicoes && selectedReport.historicoEdicoes.length > 0 && (
                             <div className="mt-10 border-t-2 border-gray-200 pt-6">
                                 <h3 className="text-gray-500 font-bold uppercase text-sm mb-4 text-center">🕒 Histórico de Alterações</h3>
@@ -928,7 +1093,7 @@ export default function Home() {
                                         <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-bold">{item.plantao}</span>
                                     </div>
                                     <p className="text-sm text-gray-700"><strong>Supervisor:</strong> {item.supervisor}</p>
-                                    <p className="text-xs text-gray-500 line-clamp-2 mt-2"><em>{item.resumoPlantao || "Sem resumo..."}</em></p>
+                                    <p className="text-xs text-gray-500 line-clamp-2 mt-2"><em>{limparTexto(item.resumoPlantao).substring(0, 50) + "..." || "Sem resumo..."}</em></p>
                                     <p className="text-xs text-blue-600 mt-2 font-bold text-right group-hover:underline">Ver completo &gt;</p>
                                 </div>
                             ))}
@@ -1045,7 +1210,37 @@ export default function Home() {
                 <textarea name="resumoPlantao" value={formData.resumoPlantao} placeholder="Fale aqui..." onChange={handleChange} className="w-full border p-3 rounded h-40 mb-6 outline-none text-lg text-gray-900"></textarea>
             </section>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Supervisor Diurno</label><input placeholder="Assinatura..." name="assinaturaDiurno" value={formData.assinaturaDiurno} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 text-gray-900" /></div><div><label className="text-xs font-bold text-gray-500 uppercase block mb-1">Supervisor Noturno</label><input placeholder="Assinatura..." name="assinaturaNoturno" value={formData.assinaturaNoturno} onChange={handleChange} className="w-full border p-3 rounded bg-gray-50 text-gray-900" /></div></div>
+            {/* --- SEÇÃO FOTOS --- */}
+            <section className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <h3 className="text-blue-900 font-bold text-lg mb-4">📷 Fotos da Ocorrência / Plantão</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    {formData.fotos.map((foto, idx) => (
+                        <div key={idx} className="relative group">
+                            <img src={foto} className="w-full h-24 object-cover rounded border" />
+                            <button onClick={() => removePhoto(idx)} className="absolute top-0 right-0 bg-red-600 text-white p-1 rounded-bl text-xs font-bold">X</button>
+                        </div>
+                    ))}
+                    <label className="border-2 border-dashed border-gray-300 rounded flex flex-col items-center justify-center h-24 cursor-pointer hover:bg-gray-100">
+                        <span className="text-2xl text-gray-400">+</span>
+                        <span className="text-xs text-gray-500">Adicionar Foto</span>
+                        <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
+                    </label>
+                </div>
+            </section>
+
+            {/* --- SEÇÃO ASSINATURAS --- */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div className="space-y-4">
+                    <label className="text-xs font-bold text-gray-500 uppercase block">Nome Supervisor Diurno</label>
+                    <input placeholder="Digite o nome..." name="assinaturaDiurno" value={formData.assinaturaDiurno} onChange={handleChange} className="w-full border p-2 rounded text-gray-900" />
+                    <SignaturePad label="Assinatura Digital (Diurno)" onSave={(data) => setFormData(prev => ({...prev, assinaturaDiurnoImg: data}))} initialImage={formData.assinaturaDiurnoImg} />
+                </div>
+                <div className="space-y-4">
+                    <label className="text-xs font-bold text-gray-500 uppercase block">Nome Supervisor Noturno</label>
+                    <input placeholder="Digite o nome..." name="assinaturaNoturno" value={formData.assinaturaNoturno} onChange={handleChange} className="w-full border p-2 rounded text-gray-900" />
+                    <SignaturePad label="Assinatura Digital (Noturno)" onSave={(data) => setFormData(prev => ({...prev, assinaturaNoturnoImg: data}))} initialImage={formData.assinaturaNoturnoImg} />
+                </div>
+            </div>
             
             <div className="pt-6 pb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex gap-2">
