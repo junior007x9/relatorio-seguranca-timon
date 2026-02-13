@@ -33,18 +33,40 @@ const TEMPO_AVISO = 4.5 * 60 * 1000;
 type AlojamentoDados = { qtd: string; nomes: string; };
 type HistoricoEdicao = { usuario: string; dataHora: string; acao: string; }; 
 
+type AdmissaoItem = { 
+    nome: string; 
+    quemRecebeu: string; 
+    quemVistoria: string;
+    origem: string;
+    horario: string; 
+};
+
+type DesligamentoItem = {
+    nome: string;
+    quemLevou: string;
+    motorista: string;
+    quemVistoria: string;
+    horario: string;
+};
+
 type RelatorioData = {
   id?: number; created_at?: string; data: string; supervisor: string; educadores: string; apoio: string; plantao: string;
   tonfas: string; algemas: string; chavesAcesso: string; chavesAlgemas: string; escudos: string; lanternas: string;
   celular: string; radioCelular: string; radioHT: string; cadeados: string; pendrives: string;
   alojamentos: { [key: string]: AlojamentoDados };
   resumoPlantao: string; assinaturaDiurno: string; assinaturaNoturno: string;
-  // NOVOS CAMPOS
   assinaturaDiurnoImg: string; 
   assinaturaNoturnoImg: string;
-  fotos: string[]; // Array de Base64
+  fotos: string[];
   
   temSaida: boolean; saidaAdolescente: string; saidaEducador: string; saidaHorario: string;
+  
+  temAdmissao: boolean;
+  admissoes: AdmissaoItem[]; 
+
+  temDesligamento: boolean;
+  desligamentos: DesligamentoItem[];
+
   temFolga: boolean; educadoresFolga: string;
   temFerias: boolean; educadoresFerias: string;
   coordenador: string;
@@ -69,23 +91,24 @@ const INITIAL_FORM_DATA: RelatorioData = {
       '05': { qtd: '0', nomes: '' }, '06': { qtd: '0', nomes: '' }, '07': { qtd: '0', nomes: '' }, '08': { qtd: '0', nomes: '' }
     },
     resumoPlantao: '', assinaturaDiurno: '', assinaturaNoturno: '',
-    // INICIALIZAÇÃO NOVOS CAMPOS
     assinaturaDiurnoImg: '', assinaturaNoturnoImg: '', fotos: [],
     
     temSaida: false, saidaAdolescente: '', saidaEducador: '', saidaHorario: '',
+    
+    temAdmissao: false, admissoes: [],
+    temDesligamento: false, desligamentos: [],
+
     temFolga: false, educadoresFolga: '',
     temFerias: false, educadoresFerias: '',
     temApoioSemiliberdade: false, educadoresApoioSemiliberdade: '',
     historicoEdicoes: []
 };
 
-// --- COMPONENTE DE ASSINATURA (CANVAS) ---
-// Este componente cria a área de desenho
+// --- COMPONENTE DE ASSINATURA ---
 const SignaturePad = ({ label, onSave, initialImage }: { label: string, onSave: (data: string) => void, initialImage: string }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
 
-    // Carrega assinatura se já existir (modo edição)
     useEffect(() => {
         if (initialImage && canvasRef.current) {
             const ctx = canvasRef.current.getContext('2d');
@@ -98,7 +121,6 @@ const SignaturePad = ({ label, onSave, initialImage }: { label: string, onSave: 
     const getCoords = (e: any) => {
         if (!canvasRef.current) return { x: 0, y: 0 };
         const rect = canvasRef.current.getBoundingClientRect();
-        // Suporte para Mouse e Touch (Celular)
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
         return { x: clientX - rect.left, y: clientY - rect.top };
@@ -119,7 +141,7 @@ const SignaturePad = ({ label, onSave, initialImage }: { label: string, onSave: 
 
     const draw = (e: any) => {
         if (!isDrawing || !canvasRef.current) return;
-        if(e.type === 'touchmove') e.preventDefault(); // Evita scroll da tela ao assinar
+        if(e.type === 'touchmove') e.preventDefault(); 
         const ctx = canvasRef.current.getContext('2d');
         if (ctx) {
             const { x, y } = getCoords(e);
@@ -131,7 +153,6 @@ const SignaturePad = ({ label, onSave, initialImage }: { label: string, onSave: 
     const endDrawing = () => {
         if (isDrawing && canvasRef.current) {
             setIsDrawing(false);
-            // Salva a imagem em base64
             onSave(canvasRef.current.toDataURL("image/png"));
         }
     };
@@ -313,21 +334,76 @@ export default function Home() {
     setFormData(prev => ({ ...prev, alojamentos: { ...prev.alojamentos, [id]: { ...prev.alojamentos[id], [field]: value } } }));
   };
 
+  // --- LÓGICA DE ADMISSÃO ---
+  const addAdmissao = () => {
+      const last = (formData.admissoes || []).length > 0 ? formData.admissoes[formData.admissoes.length - 1] : null;
+      setFormData(prev => ({ 
+          ...prev, 
+          admissoes: [...(prev.admissoes || []), { 
+              nome: '', 
+              quemRecebeu: last ? last.quemRecebeu : '', 
+              quemVistoria: last ? last.quemVistoria : '', 
+              origem: last ? last.origem : '', 
+              horario: last ? last.horario : '' 
+          }] 
+      }));
+  };
+
+  const removeAdmissao = (index: number) => {
+      setFormData(prev => ({ ...prev, admissoes: (prev.admissoes || []).filter((_, i) => i !== index) }));
+  };
+
+  const handleAdmissaoItemChange = (index: number, field: keyof AdmissaoItem, value: string) => {
+      const novas = [...(formData.admissoes || [])];
+      novas[index] = { ...novas[index], [field]: value };
+      setFormData(prev => ({ ...prev, admissoes: novas }));
+  };
+
+  // --- LÓGICA DE DESLIGAMENTO ---
+  const addDesligamento = () => {
+      const last = (formData.desligamentos || []).length > 0 ? formData.desligamentos[formData.desligamentos.length - 1] : null;
+      setFormData(prev => ({ 
+          ...prev, 
+          desligamentos: [...(prev.desligamentos || []), { 
+              nome: '', 
+              quemLevou: last ? last.quemLevou : '', 
+              motorista: last ? last.motorista : '', 
+              quemVistoria: last ? last.quemVistoria : '', 
+              horario: last ? last.horario : '' 
+          }] 
+      }));
+  };
+
+  const removeDesligamento = (index: number) => {
+      setFormData(prev => ({ ...prev, desligamentos: (prev.desligamentos || []).filter((_, i) => i !== index) }));
+  };
+
+  const handleDesligamentoItemChange = (index: number, field: keyof DesligamentoItem, value: string) => {
+      const novas = [...(formData.desligamentos || [])];
+      novas[index] = { ...novas[index], [field]: value };
+      setFormData(prev => ({ ...prev, desligamentos: novas }));
+  };
+
   const handleEditReport = (report: RelatorioData) => {
-    setFormData({ ...report });
+    setFormData({ 
+        ...report,
+        admissoes: report.admissoes || [],
+        desligamentos: report.desligamentos || [],
+        fotos: report.fotos || [],
+        historicoEdicoes: report.historicoEdicoes || []
+    });
     setSelectedReport(null);
     setView('form');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleCancelEdit = () => {
-      if(confirm("Tem certeza que deseja cancelar a edição? Os dados não salvos serão perdidos.")) {
+      if(confirm("Tem certeza que deseja cancelar a edição?")) {
           setFormData(INITIAL_FORM_DATA);
           window.scrollTo({ top: 0, behavior: 'smooth' });
       }
   };
 
-  // --- LÓGICA DE UPLOAD DE FOTOS ---
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files[0]) {
           const file = e.target.files[0];
@@ -335,7 +411,6 @@ export default function Home() {
           reader.onload = (event: any) => {
               const img = new Image();
               img.onload = () => {
-                  // Redimensiona imagem para economizar espaço no banco (Max 800px)
                   const canvas = document.createElement('canvas');
                   const MAX_WIDTH = 800;
                   const scaleSize = MAX_WIDTH / img.width;
@@ -343,9 +418,8 @@ export default function Home() {
                   canvas.height = img.height * scaleSize;
                   const ctx = canvas.getContext("2d");
                   ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-                  // Comprime para JPEG 70%
                   const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
-                  setFormData(prev => ({ ...prev, fotos: [...prev.fotos, dataUrl] }));
+                  setFormData(prev => ({ ...prev, fotos: [...(prev.fotos || []), dataUrl] }));
               };
               img.src = event.target.result;
           };
@@ -354,7 +428,7 @@ export default function Home() {
   };
 
   const removePhoto = (index: number) => {
-      setFormData(prev => ({ ...prev, fotos: prev.fotos.filter((_, i) => i !== index) }));
+      setFormData(prev => ({ ...prev, fotos: (prev.fotos || []).filter((_, i) => i !== index) }));
   };
 
   const carregarImagemBuffer = async (url: string) => { try { const r = await fetch(url); if (!r.ok) return null; const b = await r.blob(); return await b.arrayBuffer(); } catch { return null; } };
@@ -366,14 +440,9 @@ export default function Home() {
     });
   };
 
-  // --- LIMPEZA DE TEXTO (Mantida a versão corrigida do último prompt) ---
   const limparTexto = (texto: string) => {
       if (!texto) return "";
-      const limpo = texto
-        .replace(/[^\w\sÀ-ÿ.,;:\-()\/%@!?:'"\n]/g, "") 
-        .replace(/As1|Asl|As\|/g, "Às")   
-        .replace(/As\s/g, "Às ") 
-        .replace(/[ \t]+/g, " ");
+      const limpo = texto.replace(/[^\w\sÀ-ÿ.,;:\-()\/%@!?:'"\n]/g, "").replace(/As1|Asl|As\|/g, "Às").replace(/As\s/g, "Às ").replace(/[ \t]+/g, " ");
       return limpo.trim();
   };
 
@@ -388,20 +457,38 @@ export default function Home() {
     const total = calcularTotalAdolescentes(dados);
     let texto = `*RELATÓRIO EQUIPE DE SEGURANÇA - CSIPRC*\n📅 Data: ${dados.data}\n`;
     texto += `\n*👮 COORDENAÇÃO*\nCoordenador de Segurança: ${dados.coordenador}\nSupervisor: ${dados.supervisor}`;
-    // ... (restante do código do whatsapp igual)
     texto += `\n\n*👥 EDUCADORES*\n${dados.educadores}`;
     if (dados.temFolga) texto += `\n🏖️ Folga: ${dados.educadoresFolga}`;
     if (dados.temFerias) texto += `\n✈️ Férias: ${dados.educadoresFerias}`;
-    if (dados.temApoioSemiliberdade) texto += `\n🔄 Apoio Semiliberdade: ${dados.educadoresApoioSemiliberdade}`;
+    
     texto += `\n\n*🤝 EQUIPE DE APOIO*`;
     texto += `\nPortaria: ${dados.portaria || '-'}`;
     texto += `\nCozinha: ${dados.cozinha || '-'}`;
     texto += `\nServ. Gerais: ${dados.servicosGerais || '-'}`;
     texto += `\nOutros Apoios: ${dados.apoio || '-'}`;
     texto += `\n\n🕒 Plantão: ${dados.plantao}`;
+    
+    // --- OCORRÊNCIAS (SAIDA, ADMISSÃO, DESLIGAMENTO) ---
     if (dados.temSaida) { 
         texto += `\n\n*🚨 SAÍDA EXTERNA*\n👤 Adolescente: ${dados.saidaAdolescente}\n👮 Educador: ${dados.saidaEducador}\n⏰ Horário: ${dados.saidaHorario}`; 
     }
+
+    if (dados.temAdmissao) {
+        texto += `\n\n*📥 ADMISSÃO DE ADOLESCENTE*`;
+        if (dados.admissoes && dados.admissoes.length > 0) {
+            dados.admissoes.forEach(adm => texto += `\n👤 ${adm.nome}\n   - Rec: ${adm.quemRecebeu}\n   - Vist: ${adm.quemVistoria}\n   - Orig: ${adm.origem}\n   - Hora: ${adm.horario}`);
+        } else { texto += `\nSim (sem detalhes)`; }
+    }
+
+    if (dados.temDesligamento) {
+        texto += `\n\n*📤 DESLIGAMENTO*`;
+        if (dados.desligamentos && dados.desligamentos.length > 0) {
+            dados.desligamentos.forEach(des => texto += `\n👤 ${des.nome}\n   - Levou: ${des.quemLevou}\n   - Mot: ${des.motorista}\n   - Vist: ${des.quemVistoria}\n   - Hora: ${des.horario}`);
+        } else { texto += `\nSim (sem detalhes)`; }
+    }
+
+    if (dados.temApoioSemiliberdade) texto += `\n\n🔄 Apoio Semiliberdade: ${dados.educadoresApoioSemiliberdade}`;
+
     texto += `\n\n*🛡️ MATERIAIS*`;
     texto += `\n🔹 Tonfas: ${dados.tonfas || '0'} | Algemas: ${dados.algemas || '0'}`;
     texto += `\n🔹 Celular: ${dados.celular || '0'} | Rádio HT: ${dados.radioHT || '0'}`;
@@ -415,15 +502,13 @@ export default function Home() {
         if (al) { texto += `\n🏠 AL-${num}: ${al.qtd || '0'} ${al.nomes ? `(${al.nomes})` : ''}`; }
     });
     texto += `\n\n*TOTAL: ${total} adolescentes*`;
-    
-    // Lista Limpa
     const linhasResumo = converterParaLista(dados.resumoPlantao);
     texto += `\n\n*📝 RESUMO DO PLANTÃO*\n` + (linhasResumo.length > 0 ? linhasResumo.map(l => `• ${l}`).join('\n') : 'Sem observações.');
     texto += `\n\n*✍️ ASSINATURAS*\n☀️ Diurno: ${dados.assinaturaDiurno}\n🌙 Noturno: ${dados.assinaturaNoturno}`;
     return texto;
   };
 
-  // --- GERADOR PDF COM FOTOS E ASSINATURAS ---
+  // --- GERADOR PDF ---
   const gerarPDF = async (dataToPrint?: RelatorioData) => {
     const dados = dataToPrint || formData;
     const total = calcularTotalAdolescentes(dados);
@@ -463,14 +548,6 @@ export default function Home() {
               { width: '*', text: [{ text: 'Outros: ', bold: true }, dados.apoio || '-'], fontSize: 10 }
           ], margin: [0, 2] }
       );
-
-      if (dados.temSaida) {
-        contentArray.push(
-            { text: 'SAÍDA EXTERNA', style: 'sectionHeader', alignment: 'center', color: 'red' },
-            { columns: [{ width: '*', text: [{ text: 'Adolescente: ', bold: true }, dados.saidaAdolescente], fontSize: 10 }, { width: '*', text: [{ text: 'Horário: ', bold: true }, dados.saidaHorario], fontSize: 10 }], margin: [0, 2] },
-            { text: [{ text: 'Educador Responsável: ', bold: true }, dados.saidaEducador], margin: [0, 0, 0, 5], fontSize: 10 }
-        );
-      }
 
       contentArray.push(
           { text: 'MATERIAIS DE SEGURANÇA', style: 'sectionHeader', alignment: 'center' },
@@ -515,7 +592,44 @@ export default function Home() {
           contentArray.push({ text: "Sem observações.", fontSize: 10, alignment: 'center', margin: [0, 0, 0, 10] });
       }
 
-      // --- ASSINATURAS (IMAGENS) ---
+      // --- OCORRÊNCIAS APÓS O RESUMO NO PDF ---
+      if (dados.temSaida) {
+        contentArray.push(
+            { text: 'SAÍDA EXTERNA', style: 'sectionHeader', alignment: 'center', color: '#b91c1c' },
+            { columns: [{ width: '*', text: [{ text: 'Adolescente: ', bold: true }, dados.saidaAdolescente], fontSize: 10 }, { width: '*', text: [{ text: 'Horário: ', bold: true }, dados.saidaHorario], fontSize: 10 }], margin: [0, 2] },
+            { text: [{ text: 'Educador Responsável: ', bold: true }, dados.saidaEducador], margin: [0, 0, 0, 5], fontSize: 10 }
+        );
+      }
+
+      if (dados.temAdmissao) {
+          contentArray.push({ text: 'ADMISSÃO DE ADOLESCENTE', style: 'sectionHeader', alignment: 'center', color: '#15803d' });
+          if(dados.admissoes && dados.admissoes.length > 0) {
+              dados.admissoes.forEach(a => {
+                  contentArray.push({ 
+                      text: [
+                          { text: `• ${a.nome}`, bold: true },
+                          { text: ` | Recebido: ${a.quemRecebeu} | Vist: ${a.quemVistoria} | Origem: ${a.origem} | Hora: ${a.horario}`, fontSize: 9 }
+                      ], margin: [10, 0, 0, 2] 
+                  });
+              });
+          }
+      }
+
+      if (dados.temDesligamento) {
+          contentArray.push({ text: 'DESLIGAMENTO', style: 'sectionHeader', alignment: 'center', color: '#b91c1c' });
+          if(dados.desligamentos && dados.desligamentos.length > 0) {
+              dados.desligamentos.forEach(d => {
+                  contentArray.push({ 
+                      text: [
+                          { text: `• ${d.nome}`, bold: true },
+                          { text: ` | Levou: ${d.quemLevou} | Mot: ${d.motorista} | Vist: ${d.quemVistoria} | Hora: ${d.horario}`, fontSize: 9 }
+                      ], margin: [10, 0, 0, 2] 
+                  });
+              });
+          }
+      }
+      // ----------------------------------------
+
       contentArray.push({ 
           unbreakable: true, 
           stack: [
@@ -539,11 +653,9 @@ export default function Home() {
           ]
       });
 
-      // --- FOTOS ANEXADAS ---
       if (dados.fotos && dados.fotos.length > 0) {
           contentArray.push({ text: 'REGISTROS FOTOGRÁFICOS', style: 'sectionHeader', alignment: 'center', pageBreak: 'before', margin: [0, 10, 0, 10] });
           const fotosGrid = [];
-          // Agrupa fotos em pares
           for (let i = 0; i < dados.fotos.length; i += 2) {
               const row = {
                   columns: [
@@ -557,22 +669,15 @@ export default function Home() {
       }
 
       const docDefinition: any = { 
-          pageSize: 'A4', 
-          pageMargins: [15, 15, 15, 15], 
-          content: contentArray, 
+          pageSize: 'A4', pageMargins: [15, 15, 15, 15], content: contentArray, 
           defaultStyle: { fontSize: 10 },
-          styles: { 
-              header: { fontSize: 16, bold: true, margin: [0, 0, 0, 2] }, 
-              subheader: { fontSize: 12, bold: true }, 
-              sectionHeader: { fontSize: 11, bold: true, decoration: 'underline', margin: [0, 5, 0, 2] }, 
-              tableExample: { margin: [0, 2, 0, 5] } 
-          } 
+          styles: { header: { fontSize: 16, bold: true, margin: [0, 0, 0, 2] }, subheader: { fontSize: 12, bold: true }, sectionHeader: { fontSize: 11, bold: true, decoration: 'underline', margin: [0, 5, 0, 2] }, tableExample: { margin: [0, 2, 0, 5] } } 
       };
       pdfMake.createPdf(docDefinition).download(`Relatorio_PDF_${dados.data.replace(/\//g, '-')}.pdf`);
     } catch { alert("Erro ao gerar PDF."); }
   };
 
-  // --- GERADOR WORD COM FOTOS E ASSINATURAS ---
+  // --- GERADOR WORD ---
   const gerarWord = async (dataToPrint?: RelatorioData) => {
     const dados = dataToPrint || formData;
     const total = calcularTotalAdolescentes(dados);
@@ -590,7 +695,6 @@ export default function Home() {
               new Paragraph({ children: [new TextRun({ text: "EDUCADORES: ", bold: true }), new TextRun(dados.educadores)], spacing: noSpacing }),
         ];
 
-        // ... (Dados extras) ...
         if (dados.temFolga) childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "FOLGA: ", bold: true }), new TextRun(dados.educadoresFolga)], spacing: noSpacing }));
         if (dados.temFerias) childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "FÉRIAS: ", bold: true }), new TextRun(dados.educadoresFerias)], spacing: noSpacing }));
         if (dados.temApoioSemiliberdade) childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "APOIO SEMI: ", bold: true }), new TextRun(dados.educadoresApoioSemiliberdade)], spacing: noSpacing }));
@@ -602,14 +706,6 @@ export default function Home() {
               new Paragraph({ children: [new TextRun({ text: "Serv. Gerais: ", bold: true }), new TextRun(dados.servicosGerais || "-" + " | "), new TextRun({ text: "Outros: ", bold: true }), new TextRun(dados.apoio || "-")], spacing: noSpacing }),
               new Paragraph({ children: [new TextRun({ text: "PLANTÃO: ", bold: true }), new TextRun(dados.plantao)], spacing: { after: 100 } }),
         );
-
-        if (dados.temSaida) {
-            childrenParagraphs.push(
-                new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "SAÍDA EXTERNA", bold: true, underline: {}, color: "FF0000" })], spacing: noSpacing }),
-                new Paragraph({ children: [new TextRun({ text: "Adolescente: ", bold: true }), new TextRun(dados.saidaAdolescente + " | "), new TextRun({ text: "Horário: ", bold: true }), new TextRun(dados.saidaHorario)], spacing: noSpacing }),
-                new Paragraph({ children: [new TextRun({ text: "Educador: ", bold: true }), new TextRun(dados.saidaEducador)], spacing: { after: 100 } }),
-            );
-        }
 
         childrenParagraphs.push(
               new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "MATERIAIS DE SEGURANÇA", bold: true, underline: {} })], spacing: { after: 50 } }),
@@ -640,9 +736,7 @@ export default function Home() {
               new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "RESUMO DO PLANTÃO", bold: true, underline: {} })], keepNext: true, spacing: noSpacing })
         );
 
-        // --- CORREÇÃO WORD: LISTA DE TÓPICOS ---
         const linhasResumo = converterParaLista(dados.resumoPlantao);
-
         if (linhasResumo.length > 0) {
             linhasResumo.forEach(linha => {
                 childrenParagraphs.push(
@@ -657,6 +751,33 @@ export default function Home() {
             childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "Sem observações.", size: 18 })] }));
         }
 
+        // --- OCORRÊNCIAS APÓS O RESUMO NO WORD ---
+        if (dados.temSaida) {
+            childrenParagraphs.push(
+                new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "SAÍDA EXTERNA", bold: true, underline: {}, color: "FF0000" })], spacing: { before: 200, after: 50 } }),
+                new Paragraph({ children: [new TextRun({ text: "Adolescente: ", bold: true }), new TextRun(dados.saidaAdolescente + " | "), new TextRun({ text: "Horário: ", bold: true }), new TextRun(dados.saidaHorario)], spacing: noSpacing }),
+                new Paragraph({ children: [new TextRun({ text: "Educador: ", bold: true }), new TextRun(dados.saidaEducador)], spacing: { after: 100 } }),
+            );
+        }
+
+        if (dados.temAdmissao) {
+            childrenParagraphs.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "ADMISSÃO DE ADOLESCENTE", bold: true, underline: {}, color: "15803D" })], spacing: { before: 100 } }));
+            if(dados.admissoes && dados.admissoes.length > 0) {
+                dados.admissoes.forEach(a => {
+                    childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: `${a.nome} | Rec: ${a.quemRecebeu} | Vist: ${a.quemVistoria} | Orig: ${a.origem} | Hora: ${a.horario}`, size: 18 })], bullet: { level: 0 }, spacing: noSpacing }));
+                });
+            } else { childrenParagraphs.push(new Paragraph({ children: [new TextRun("Sim (sem detalhes)")] })); }
+        }
+
+        if (dados.temDesligamento) {
+            childrenParagraphs.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "DESLIGAMENTO", bold: true, underline: {}, color: "B91C1C" })], spacing: { before: 100 } }));
+            if(dados.desligamentos && dados.desligamentos.length > 0) {
+                dados.desligamentos.forEach(d => {
+                    childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: `${d.nome} | Levou: ${d.quemLevou} | Mot: ${d.motorista} | Vist: ${d.quemVistoria} | Hora: ${d.horario}`, size: 18 })], bullet: { level: 0 }, spacing: noSpacing }));
+                });
+            } else { childrenParagraphs.push(new Paragraph({ children: [new TextRun("Sim (sem detalhes)")] })); }
+        }
+
         childrenParagraphs.push(
               new Paragraph({ text: "\n", keepNext: true, spacing: noSpacing }), 
               new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "___________________________        ___________________________" })], keepNext: true, spacing: noSpacing }),
@@ -664,12 +785,9 @@ export default function Home() {
               new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Supervisor Diurno                      Supervisor Noturno", size: 14 })], keepNext: true })
         );
 
-        // --- FOTOS NO WORD ---
         if(dados.fotos && dados.fotos.length > 0) {
             childrenParagraphs.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "ANEXOS FOTOGRÁFICOS", bold: true, size: 20 })], pageBreakBefore: true }));
-            
             for(const foto of dados.fotos) {
-                // Word requer imagem como Buffer/Blob
                 const res = await fetch(foto);
                 const buff = await res.blob();
                 childrenParagraphs.push(new Paragraph({ children: [new ImageRun({ data: await buff.arrayBuffer(), transformation: { width: 400, height: 300 } })], alignment: AlignmentType.CENTER }));
@@ -700,34 +818,28 @@ export default function Home() {
         resumoPlantao: item.resumo_plantao, 
         assinaturaDiurno: item.plantao_diurno, 
         assinaturaNoturno: item.plantao_noturno, 
-        
-        // Mapeamento novos campos
         assinaturaDiurnoImg: item.assinatura_diurno_img || '',
         assinaturaNoturnoImg: item.assinatura_noturno_img || '',
         fotos: item.fotos || [],
-
         alojamentos: item.alojamentos || {},
         temSaida: item.tem_saida || false, 
         saidaAdolescente: item.saida_adolescente || '', 
         saidaEducador: item.saida_educador || '', 
         saidaHorario: item.saida_horario || '',
+        
+        temAdmissao: item.tem_admissao || false,
+        admissoes: item.admissoes || [],
+
+        temDesligamento: item.tem_desligamento || false,
+        desligamentos: item.desligamentos || [],
+
         temFolga: item.tem_folga || false, 
         educadoresFolga: item.educadores_folga || '',
         temFerias: item.tem_ferias || false, 
         educadoresFerias: item.educadores_ferias || '',
         temApoioSemiliberdade: item.tem_apoio_semiliberdade || false, 
         educadoresApoioSemiliberdade: item.educadores_apoio_semiliberdade || '',
-        tonfas: item.tonfas,
-        algemas: item.algemas,
-        chavesAcesso: item.chaves_acesso,
-        chavesAlgemas: item.chaves_algemas,
-        escudos: item.escudos,
-        lanternas: item.lanternas,
-        celular: item.celular,
-        radioCelular: item.radio_celular,
-        radioHT: item.radio_ht,
-        cadeados: item.cadeados,
-        pendrives: item.pendrives,
+        tonfas: item.tonfas, algemas: item.algemas, chavesAcesso: item.chaves_acesso, chavesAlgemas: item.chaves_algemas, escudos: item.escudos, lanternas: item.lanternas, celular: item.celular, radioCelular: item.radio_celular, radioHT: item.radio_ht, cadeados: item.cadeados, pendrives: item.pendrives,
         historicoEdicoes: item.historico_edicoes || []
       })));
     }
@@ -754,21 +866,22 @@ export default function Home() {
 
     const payload = {
       data_plantao: formData.data, educadores: formData.educadores, supervisor: formData.supervisor, 
-      coordenador: formData.coordenador, 
-      apoio_geral: formData.apoio,
-      equipe_cozinha: formData.cozinha,
-      equipe_servicos_gerais: formData.servicosGerais,
-      equipe_portaria: formData.portaria,
+      coordenador: formData.coordenador, apoio_geral: formData.apoio,
+      equipe_cozinha: formData.cozinha, equipe_servicos_gerais: formData.servicosGerais, equipe_portaria: formData.portaria,
       plantao: formData.plantao,
       tonfas: formData.tonfas, algemas: formData.algemas, chaves_acesso: formData.chavesAcesso, chaves_algemas: formData.chavesAlgemas, escudos: formData.escudos, lanternas: formData.lanternas, celular: formData.celular, radio_celular: formData.radioCelular, radio_ht: formData.radioHT, cadeados: formData.cadeados, pendrives: formData.pendrives,
       alojamentos: formData.alojamentos, resumo_plantao: formData.resumoPlantao, plantao_diurno: formData.assinaturaDiurno, plantao_noturno: formData.assinaturaNoturno,
-      
-      // NOVOS CAMPOS SALVOS
       assinatura_diurno_img: formData.assinaturaDiurnoImg,
       assinatura_noturno_img: formData.assinaturaNoturnoImg,
       fotos: formData.fotos,
-
       tem_saida: formData.temSaida, saida_adolescente: formData.saidaAdolescente, saida_educador: formData.saidaEducador, saida_horario: formData.saidaHorario,
+      
+      tem_admissao: formData.temAdmissao,
+      admissoes: formData.admissoes,
+
+      tem_desligamento: formData.temDesligamento,
+      desligamentos: formData.desligamentos,
+
       tem_folga: formData.temFolga, educadores_folga: formData.educadoresFolga,
       tem_ferias: formData.temFerias, educadores_ferias: formData.educadoresFerias,
       tem_apoio_semiliberdade: formData.temApoioSemiliberdade, educadores_apoio_semiliberdade: formData.educadoresApoioSemiliberdade,
@@ -942,8 +1055,52 @@ export default function Home() {
                                  <p className="text-gray-900"><span className="font-bold">Horário:</span> {selectedReport.saidaHorario}</p>
                              </div>
                          )}
+
+                         {/* ADMISSÃO HISTÓRICO */}
+                         {selectedReport.temAdmissao && (
+                             <div className="mb-6 bg-green-50 p-4 rounded border border-green-200">
+                                 <h3 className="text-green-900 font-bold border-b border-green-300 mb-3 uppercase">🆕 Admissão de Adolescente</h3>
+                                 {(selectedReport.admissoes || []).length > 0 ? (
+                                     <div className="space-y-2">
+                                         {(selectedReport.admissoes || []).map((adm, idx) => (
+                                             <div key={idx} className="bg-white p-2 rounded shadow-sm border border-green-100 text-sm">
+                                                 <p className="font-bold text-gray-900">{adm.nome}</p>
+                                                 <div className="grid grid-cols-2 gap-2 mt-1 text-gray-600 text-xs">
+                                                     <p>Recebido: {adm.quemRecebeu}</p>
+                                                     <p>Vistoria: {adm.quemVistoria}</p>
+                                                     <p>Origem: {adm.origem}</p>
+                                                     <p>Horário: {adm.horario}</p>
+                                                 </div>
+                                             </div>
+                                         ))}
+                                     </div>
+                                 ) : <p className="text-gray-500 italic">Sim (sem detalhes).</p>}
+                             </div>
+                         )}
+
+                         {/* DESLIGAMENTO HISTÓRICO */}
+                         {selectedReport.temDesligamento && (
+                             <div className="mb-6 bg-red-50 p-4 rounded border border-red-200">
+                                 <h3 className="text-red-900 font-bold border-b border-red-300 mb-3 uppercase">📤 Desligamento</h3>
+                                 {(selectedReport.desligamentos || []).length > 0 ? (
+                                     <div className="space-y-2">
+                                         {(selectedReport.desligamentos || []).map((des, idx) => (
+                                             <div key={idx} className="bg-white p-2 rounded shadow-sm border border-red-100 text-sm">
+                                                 <p className="font-bold text-gray-900">{des.nome}</p>
+                                                 <div className="grid grid-cols-2 gap-2 mt-1 text-gray-600 text-xs">
+                                                     <p>Levou: {des.quemLevou}</p>
+                                                     <p>Motorista: {des.motorista}</p>
+                                                     <p>Vistoria: {des.quemVistoria}</p>
+                                                     <p>Horário: {des.horario}</p>
+                                                 </div>
+                                             </div>
+                                         ))}
+                                     </div>
+                                 ) : <p className="text-gray-500 italic">Sim (sem detalhes).</p>}
+                             </div>
+                         )}
+
                          <div className="mb-6">
-                             {/* NOVA VISUALIZAÇÃO DE MATERIAIS PARA EVITAR 'SOPA' NO MOBILE */}
                              <h3 className="text-blue-900 font-bold border-b border-gray-300 mb-3 uppercase">🛡️ Materiais</h3>
                              <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
                                 <div className="bg-gray-50 p-2 rounded border flex flex-col justify-between h-full">
@@ -1045,11 +1202,11 @@ export default function Home() {
                              </div>
                          )}
 
-                         {selectedReport.historicoEdicoes && selectedReport.historicoEdicoes.length > 0 && (
+                         {(selectedReport.historicoEdicoes || []).length > 0 && (
                             <div className="mt-10 border-t-2 border-gray-200 pt-6">
                                 <h3 className="text-gray-500 font-bold uppercase text-sm mb-4 text-center">🕒 Histórico de Alterações</h3>
                                 <div className="space-y-4">
-                                    {selectedReport.historicoEdicoes.map((edicao, index) => (
+                                    {(selectedReport.historicoEdicoes || []).map((edicao, index) => (
                                         <div key={index} className="flex gap-4 items-start">
                                             <div className="flex flex-col items-center">
                                                 <div className="w-2 h-2 rounded-full bg-blue-500 mt-2"></div>
@@ -1189,10 +1346,9 @@ export default function Home() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{['01', '02', '03', '04', '05', '06', '07', '08'].map((num) => (<div key={num} className="bg-gray-50 p-3 rounded border border-gray-200 flex gap-2 items-center"><span className="font-bold text-blue-800 text-sm w-12">AL-{num}</span><input type="number" placeholder="Qtd" value={formData.alojamentos[num].qtd} onChange={(e) => handleAlojamentoChange(num, 'qtd', e.target.value)} className="w-16 border p-2 text-center rounded font-bold text-gray-900" /><input type="text" placeholder="Nomes..." value={formData.alojamentos[num].nomes} onChange={(e) => handleAlojamentoChange(num, 'nomes', e.target.value)} className="flex-1 border p-2 rounded text-sm text-gray-900" /></div>))}</div>
             </section>
-            <section className="mt-8 bg-red-50 p-4 rounded-lg border border-red-200"><div className="flex items-center gap-3 mb-4"><input type="checkbox" id="temSaida" name="temSaida" checked={formData.temSaida} onChange={handleChange} className="w-6 h-6 text-red-600 rounded focus:ring-red-500 border-gray-300" /><label htmlFor="temSaida" className="text-lg font-bold text-red-900 cursor-pointer">Houve Saída Externa?</label></div>{formData.temSaida && (<div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-in-down"><div><label className="text-xs font-bold text-red-800 block mb-1">Nome do Adolescente</label><input placeholder="Ex: João Silva" name="saidaAdolescente" value={formData.saidaAdolescente} onChange={handleChange} className="w-full border border-red-300 p-2 rounded bg-white text-gray-900" /></div><div><label className="text-xs font-bold text-red-800 block mb-1">Educador Responsável</label><input placeholder="Ex: Maria" name="saidaEducador" value={formData.saidaEducador} onChange={handleChange} className="w-full border border-red-300 p-2 rounded bg-white text-gray-900" /></div><div><label className="text-xs font-bold text-red-800 block mb-1">Horário</label><input placeholder="Ex: 14:00" name="saidaHorario" value={formData.saidaHorario} onChange={handleChange} className="w-full border border-red-300 p-2 rounded bg-white text-gray-900" /></div></div>)}</section>
             
             {/* MICROFONE AQUI */}
-            <section className="relative">
+            <section className="relative mt-8">
                 <div className="flex justify-between items-center border-b-2 border-blue-200 mb-4 pb-2">
                     <h3 className="flex items-center text-blue-900 font-bold text-xl"><span className="mr-2">📝</span> Resumo</h3>
                     <button 
@@ -1210,8 +1366,76 @@ export default function Home() {
                 <textarea name="resumoPlantao" value={formData.resumoPlantao} placeholder="Fale aqui..." onChange={handleChange} className="w-full border p-3 rounded h-40 mb-6 outline-none text-lg text-gray-900"></textarea>
             </section>
 
+            {/* --- SEÇÃO OCORRÊNCIAS ESPECIAIS (SAÍDA / ADMISSÃO / DESLIGAMENTO) --- */}
+            <section className="mt-8 space-y-6">
+                <h3 className="text-xl font-bold text-blue-900 border-b-2 border-blue-200 pb-2">⚠️ Ocorrências Especiais</h3>
+
+                {/* SAÍDA EXTERNA */}
+                <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                    <div className="flex items-center gap-3 mb-4">
+                        <input type="checkbox" id="temSaida" name="temSaida" checked={formData.temSaida} onChange={handleChange} className="w-6 h-6 text-red-600 rounded focus:ring-red-500 border-gray-300" />
+                        <label htmlFor="temSaida" className="text-lg font-bold text-red-900 cursor-pointer">Houve Saída Externa?</label>
+                    </div>
+                    {formData.temSaida && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-in-down">
+                            <div><label className="text-xs font-bold text-red-800 block mb-1">Nome do Adolescente</label><input placeholder="Ex: João Silva" name="saidaAdolescente" value={formData.saidaAdolescente} onChange={handleChange} className="w-full border border-red-300 p-2 rounded bg-white text-gray-900" /></div>
+                            <div><label className="text-xs font-bold text-red-800 block mb-1">Educador Responsável</label><input placeholder="Ex: Maria" name="saidaEducador" value={formData.saidaEducador} onChange={handleChange} className="w-full border border-red-300 p-2 rounded bg-white text-gray-900" /></div>
+                            <div><label className="text-xs font-bold text-red-800 block mb-1">Horário</label><input placeholder="Ex: 14:00" name="saidaHorario" value={formData.saidaHorario} onChange={handleChange} className="w-full border border-red-300 p-2 rounded bg-white text-gray-900" /></div>
+                        </div>
+                    )}
+                </div>
+
+                {/* ADMISSÃO */}
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <div className="flex items-center gap-3 mb-4">
+                        <input type="checkbox" id="temAdmissao" name="temAdmissao" checked={formData.temAdmissao} onChange={handleChange} className="w-6 h-6 text-green-600 rounded focus:ring-green-500" />
+                        <label htmlFor="temAdmissao" className="text-lg font-bold text-green-900 cursor-pointer">Houve Admissão de Adolescente?</label>
+                    </div>
+                    
+                    {formData.temAdmissao && (
+                        <div className="space-y-3">
+                            {(formData.admissoes || []).map((admissao, index) => (
+                                <div key={index} className="flex flex-wrap gap-2 items-end bg-white p-3 rounded shadow-sm border border-green-100">
+                                    <div className="w-full sm:w-[22%]"><label className="text-[10px] uppercase font-bold text-gray-500">Nome</label><input placeholder="Nome completo" value={admissao.nome} onChange={(e) => handleAdmissaoItemChange(index, 'nome', e.target.value)} className="w-full border p-2 rounded text-sm text-gray-900" /></div>
+                                    <div className="w-full sm:w-[18%]"><label className="text-[10px] uppercase font-bold text-gray-500">Quem Recebeu</label><input placeholder="Educador" value={admissao.quemRecebeu} onChange={(e) => handleAdmissaoItemChange(index, 'quemRecebeu', e.target.value)} className="w-full border p-2 rounded text-sm text-gray-900" /></div>
+                                    <div className="w-full sm:w-[18%]"><label className="text-[10px] uppercase font-bold text-gray-500">Vistoria</label><input placeholder="Quem vistoriou" value={admissao.quemVistoria} onChange={(e) => handleAdmissaoItemChange(index, 'quemVistoria', e.target.value)} className="w-full border p-2 rounded text-sm text-gray-900" /></div>
+                                    <div className="w-full sm:w-[18%]"><label className="text-[10px] uppercase font-bold text-gray-500">Origem</label><input placeholder="De onde veio" value={admissao.origem} onChange={(e) => handleAdmissaoItemChange(index, 'origem', e.target.value)} className="w-full border p-2 rounded text-sm text-gray-900" /></div>
+                                    <div className="w-full sm:w-[10%]"><label className="text-[10px] uppercase font-bold text-gray-500">Horário</label><input type="time" value={admissao.horario} onChange={(e) => handleAdmissaoItemChange(index, 'horario', e.target.value)} className="w-full border p-2 rounded text-sm text-gray-900" /></div>
+                                    <button onClick={() => removeAdmissao(index)} className="bg-red-500 text-white px-3 py-2 rounded font-bold hover:bg-red-600 h-10 mb-0.5">X</button>
+                                </div>
+                            ))}
+                            <button onClick={addAdmissao} className="text-sm bg-green-600 text-white px-4 py-2 rounded font-bold hover:bg-green-700 flex items-center gap-2">➕ Adicionar outra admissão</button>
+                        </div>
+                    )}
+                </div>
+
+                {/* DESLIGAMENTO */}
+                <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                    <div className="flex items-center gap-3 mb-4">
+                        <input type="checkbox" id="temDesligamento" name="temDesligamento" checked={formData.temDesligamento} onChange={handleChange} className="w-6 h-6 text-orange-600 rounded focus:ring-orange-500" />
+                        <label htmlFor="temDesligamento" className="text-lg font-bold text-orange-900 cursor-pointer">Houve Desligamento?</label>
+                    </div>
+                    
+                    {formData.temDesligamento && (
+                        <div className="space-y-3">
+                            {(formData.desligamentos || []).map((desligamento, index) => (
+                                <div key={index} className="flex flex-wrap gap-2 items-end bg-white p-3 rounded shadow-sm border border-orange-100">
+                                    <div className="w-full sm:w-[22%]"><label className="text-[10px] uppercase font-bold text-gray-500">Nome</label><input placeholder="Nome completo" value={desligamento.nome} onChange={(e) => handleDesligamentoItemChange(index, 'nome', e.target.value)} className="w-full border p-2 rounded text-sm text-gray-900" /></div>
+                                    <div className="w-full sm:w-[18%]"><label className="text-[10px] uppercase font-bold text-gray-500">Quem Levou</label><input placeholder="Nome" value={desligamento.quemLevou} onChange={(e) => handleDesligamentoItemChange(index, 'quemLevou', e.target.value)} className="w-full border p-2 rounded text-sm text-gray-900" /></div>
+                                    <div className="w-full sm:w-[18%]"><label className="text-[10px] uppercase font-bold text-gray-500">Motorista</label><input placeholder="Nome motorista" value={desligamento.motorista} onChange={(e) => handleDesligamentoItemChange(index, 'motorista', e.target.value)} className="w-full border p-2 rounded text-sm text-gray-900" /></div>
+                                    <div className="w-full sm:w-[18%]"><label className="text-[10px] uppercase font-bold text-gray-500">Vistoria</label><input placeholder="Quem vistoriou" value={desligamento.quemVistoria} onChange={(e) => handleDesligamentoItemChange(index, 'quemVistoria', e.target.value)} className="w-full border p-2 rounded text-sm text-gray-900" /></div>
+                                    <div className="w-full sm:w-[10%]"><label className="text-[10px] uppercase font-bold text-gray-500">Horário</label><input type="time" value={desligamento.horario} onChange={(e) => handleDesligamentoItemChange(index, 'horario', e.target.value)} className="w-full border p-2 rounded text-sm text-gray-900" /></div>
+                                    <button onClick={() => removeDesligamento(index)} className="bg-red-500 text-white px-3 py-2 rounded font-bold hover:bg-red-600 h-10 mb-0.5">X</button>
+                                </div>
+                            ))}
+                            <button onClick={addDesligamento} className="text-sm bg-orange-600 text-white px-4 py-2 rounded font-bold hover:bg-orange-700 flex items-center gap-2">➕ Adicionar outro desligamento</button>
+                        </div>
+                    )}
+                </div>
+            </section>
+
             {/* --- SEÇÃO FOTOS --- */}
-            <section className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <section className="bg-gray-50 p-4 rounded-lg border border-gray-200 mt-8">
                 <h3 className="text-blue-900 font-bold text-lg mb-4">📷 Fotos da Ocorrência / Plantão</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     {formData.fotos.map((foto, idx) => (
@@ -1229,7 +1453,7 @@ export default function Home() {
             </section>
 
             {/* --- SEÇÃO ASSINATURAS --- */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-4 rounded-lg border border-gray-200 mt-8">
                 <div className="space-y-4">
                     <label className="text-xs font-bold text-gray-500 uppercase block">Nome Supervisor Diurno</label>
                     <input placeholder="Digite o nome..." name="assinaturaDiurno" value={formData.assinaturaDiurno} onChange={handleChange} className="w-full border p-2 rounded text-gray-900" />
