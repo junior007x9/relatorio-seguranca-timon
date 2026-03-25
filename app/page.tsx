@@ -308,175 +308,239 @@ export default function Home() {
   };
 
   // --- Renderização ---
-  if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-gray-100 font-bold text-gray-900">A carregar...</div>;
+  if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] font-bold text-gray-900">Carregando...</div>;
   if (!session) return <LoginForm onLogin={handleLogin} loading={loading} />;
 
   const isUserAdmin = session.user.email === ADMIN_EMAIL;
   const totalAtual = calcularTotalAdolescentes(formData);
 
   return (
-    <div className="min-h-screen bg-gray-100 font-sans pb-10">
+    <div className="min-h-screen bg-[#f8fafc] font-sans pb-12 selection:bg-blue-200">
+      
       {showInactivityWarning && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center px-4">
-            <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-sm w-full text-center border-2 border-red-500 animate-pulse">
-                <div className="text-4xl mb-4">⏳</div>
-                <h3 className="text-xl font-bold text-red-600 mb-2">Sessão Expirando!</h3>
-                <p className="text-gray-700 mb-6">Será desconectado em 30 segundos por inatividade.</p>
-                <button onClick={() => setShowInactivityWarning(false)} className="bg-blue-600 text-white font-bold py-3 px-6 rounded-xl w-full hover:bg-blue-700">Continuar Logado</button>
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center px-4 animate-fade-in-up">
+            <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center border-t-4 border-red-500">
+                <div className="text-6xl mb-4 animate-bounce">⏳</div>
+                <h3 className="text-2xl font-black text-gray-800 mb-2">Sessão Expirando!</h3>
+                <p className="text-gray-500 mb-8">Você será desconectado em 30 segundos por inatividade de segurança.</p>
+                <button onClick={() => setShowInactivityWarning(false)} className="bg-gradient-to-r from-blue-600 to-blue-800 text-white font-bold py-3 px-6 rounded-xl w-full hover:shadow-lg hover:-translate-y-1 transition-all active:translate-y-0">
+                  Continuar Logado
+                </button>
             </div>
         </div>
       )}
 
-      {/* HEADER BAR */}
-      <div className="bg-blue-900 text-white p-3 sticky top-0 z-50 shadow-md flex flex-wrap justify-between items-center gap-2">
-        <div className="flex items-center gap-2 overflow-hidden mr-2">
-            <span className="text-xl">🛡️</span>
-            <h1 className="font-bold text-sm sm:text-lg truncate">CSIPRC Segurança</h1>
+      {/* HEADER BAR (Glassmorphism) */}
+      <div className="glass-panel sticky top-0 z-40 px-6 py-4 flex flex-wrap justify-between items-center gap-4 transition-all">
+        <div className="flex items-center gap-3 overflow-hidden group cursor-pointer" onClick={() => setView('select-plantao')}>
+            <span className="text-2xl group-hover:scale-110 transition-transform bg-blue-100 p-2 rounded-xl">🛡️</span>
+            <h1 className="font-black text-gray-800 text-lg sm:text-xl tracking-tight">CSIPRC Segurança</h1>
         </div>
-        <div className="flex items-center gap-2 flex-wrap justify-end flex-1">
+        
+        <div className="flex items-center gap-3 flex-wrap justify-end flex-1">
             {view === 'form' && (
-              <>
-                <button onClick={() => setView('select-plantao')} className="bg-yellow-500 text-blue-900 p-2 rounded font-bold shadow-sm flex items-center" title="Novo Relatório">➕ <span className="ml-1 font-bold text-xs sm:text-sm">Novo Plantão</span></button>
-                <button onClick={() => gerarWord(formData)} className="bg-white text-blue-900 p-2 rounded shadow-sm flex items-center" title="Baixar Word">📄 <span className="ml-1 font-bold text-xs sm:text-sm">Word</span></button>
-                <button onClick={() => gerarPDF(formData)} className="bg-red-600 text-white p-2 rounded shadow-sm flex items-center" title="Baixar PDF">📄 <span className="ml-1 font-bold text-xs sm:text-sm">PDF</span></button>
-              </>
+              <div className="flex gap-2 bg-gray-100/50 p-1.5 rounded-xl border border-gray-200">
+                <button onClick={() => gerarWord(formData)} className="bg-white text-blue-700 px-4 py-2 rounded-lg shadow-sm hover:shadow-md hover:scale-105 transition-all flex items-center gap-2 font-bold text-sm">
+                  <span className="text-lg">📄</span> <span className="hidden sm:inline">Word</span>
+                </button>
+                <button onClick={() => gerarPDF(formData)} className="bg-white text-red-600 px-4 py-2 rounded-lg shadow-sm hover:shadow-md hover:scale-105 transition-all flex items-center gap-2 font-bold text-sm">
+                  <span className="text-lg">📄</span> <span className="hidden sm:inline">PDF</span>
+                </button>
+              </div>
             )}
             
             {(view === 'form' || view === 'select-plantao') && (
-                <button onClick={() => { fetchHistory(); setView('history'); setSelectedReport(null); }} className="bg-blue-700 p-2 rounded hover:bg-blue-600 flex items-center" title="Histórico">📜 <span className="ml-1 text-xs sm:text-sm">Histórico</span></button>
+                <button onClick={() => { fetchHistory(); setView('history'); setSelectedReport(null); }} className="bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-xl hover:bg-gray-50 hover:shadow-md transition-all flex items-center gap-2 font-bold text-sm">
+                  📜 <span className="hidden sm:inline">Histórico</span>
+                </button>
             )}
 
             {(view === 'history' || view === 'admin') && (
-                <button onClick={() => setView('select-plantao')} className="bg-yellow-500 text-blue-900 p-2 rounded font-bold flex items-center" title="Voltar">⬅ <span className="ml-1 text-xs sm:text-sm">Voltar</span></button>
+                <button onClick={() => setView('select-plantao')} className="bg-gray-800 text-white px-4 py-2 rounded-xl hover:bg-gray-700 hover:shadow-md transition-all flex items-center gap-2 font-bold text-sm">
+                  ⬅ Voltar
+                </button>
             )}
+            
             {isUserAdmin && view !== 'admin' && (
-                <button onClick={() => setView('admin')} className="bg-purple-600 text-white p-2 rounded font-bold hover:bg-purple-700 flex items-center" title="Admin">⚙️ <span className="ml-1 text-xs sm:text-sm">Admin</span></button>
+                <button onClick={() => setView('admin')} className="bg-purple-100 text-purple-700 px-4 py-2 rounded-xl hover:bg-purple-200 hover:scale-105 transition-all flex items-center gap-2 font-bold text-sm">
+                  ⚙️ <span className="hidden sm:inline">Admin</span>
+                </button>
             )}
-            <button onClick={handleLogout} className="bg-red-600 text-white p-2 rounded font-bold border border-red-500 ml-1 flex items-center" title="Sair">🚪 <span className="ml-1 text-xs sm:text-sm">Sair</span></button>
+            
+            <button onClick={handleLogout} className="bg-red-50 text-red-600 border border-red-100 px-4 py-2 rounded-xl font-bold hover:bg-red-600 hover:text-white transition-all duration-300 flex items-center gap-2 text-sm ml-2">
+              🚪 <span className="hidden sm:inline">Sair</span>
+            </button>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto bg-white shadow-lg min-h-screen mt-4 rounded-xl overflow-hidden">
-        
-        {view === 'admin' && <AdminPanel onRegister={handleRegisterUser} loading={loading} />}
+      {/* ÁREA DE CONTEÚDO */}
+      <div className="max-w-5xl mx-auto mt-8 px-4 sm:px-0">
+        <div className="bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-3xl overflow-hidden border border-gray-100 min-h-[80vh]">
+          
+          {view === 'admin' && <AdminPanel onRegister={handleRegisterUser} loading={loading} />}
 
-        {view === 'history' && (
-            <HistoryView 
-                historico={historico} loading={loading} selectedReport={selectedReport}
-                onSelectReport={setSelectedReport} onEditReport={(r) => { setFormData(r); setSelectedReport(null); setView('form'); window.scrollTo(0,0); }}
-                onDeleteReport={handleDeleteReport} onResendWhatsApp={(r) => { const txt = gerarTextoWhatsApp(r); window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(txt)}`, '_blank'); }}
-                isUserAdmin={isUserAdmin}
-            />
-        )}
+          {view === 'history' && (
+              <HistoryView 
+                  historico={historico} loading={loading} selectedReport={selectedReport}
+                  onSelectReport={setSelectedReport} onEditReport={(r) => { setFormData(r); setSelectedReport(null); setView('form'); window.scrollTo(0,0); }}
+                  onDeleteReport={handleDeleteReport} onResendWhatsApp={(r) => { const txt = gerarTextoWhatsApp(r); window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(txt)}`, '_blank'); }}
+                  isUserAdmin={isUserAdmin}
+              />
+          )}
 
-        {/* --- NOVA TELA DE SELEÇÃO DE PLANTÃO --- */}
-        {view === 'select-plantao' && (
-            <div className="flex flex-col items-center justify-center min-h-[75vh] px-4 animate-fade-in-up">
-                <h2 className="text-3xl md:text-5xl font-black text-blue-900 mb-4 text-center tracking-tight">Qual o Plantão de Hoje?</h2>
-                <p className="text-gray-500 mb-12 text-center text-lg">Selecione abaixo para carregar as informações predefinidas automaticamente.</p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
-                    <button 
-                        onClick={() => { setFormData(getTemplateAlfa()); setView('form'); window.scrollTo(0,0); }} 
-                        className="bg-blue-600 hover:bg-blue-700 text-white p-12 rounded-3xl shadow-2xl border-b-[10px] border-blue-800 transition-all active:border-b-0 active:translate-y-3 flex flex-col items-center gap-4 group"
-                    >
-                        <span className="text-7xl group-hover:scale-110 transition-transform">☀️</span>
-                        <span className="text-4xl font-black tracking-wide">ALFA</span>
-                        <span className="text-xl font-medium opacity-90 tracking-widest uppercase">Diurno</span>
-                    </button>
-                    
-                    <button 
-                        onClick={() => { setFormData(getTemplateBeta()); setView('form'); window.scrollTo(0,0); }} 
-                        className="bg-green-600 hover:bg-green-700 text-white p-12 rounded-3xl shadow-2xl border-b-[10px] border-green-800 transition-all active:border-b-0 active:translate-y-3 flex flex-col items-center gap-4 group"
-                    >
-                        <span className="text-7xl group-hover:scale-110 transition-transform">🌿</span>
-                        <span className="text-4xl font-black tracking-wide">BETA</span>
-                        <span className="text-xl font-medium opacity-90 tracking-widest uppercase">Diurno</span>
-                    </button>
-                </div>
-                
-                <button onClick={() => { setFormData(getTemplateVazio()); setView('form'); window.scrollTo(0,0); }} className="mt-12 text-gray-500 underline font-bold hover:text-gray-800 transition-colors">
-                    Ou começar um relatório totalmente em branco
-                </button>
-            </div>
-        )}
+          {/* --- NOVA TELA DE SELEÇÃO DE PLANTÃO (MODERNA) --- */}
+          {view === 'select-plantao' && (
+              <div className="flex flex-col items-center justify-center min-h-[75vh] px-6 py-12 animate-fade-in-up">
+                  <div className="inline-block bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-sm font-bold tracking-wide mb-6">
+                    MÓDULO DE REGISTRO
+                  </div>
+                  <h2 className="text-4xl md:text-5xl font-black text-gray-800 mb-4 text-center tracking-tight">Qual o Plantão de Hoje?</h2>
+                  <p className="text-gray-500 mb-12 text-center text-lg max-w-xl">
+                    Selecione o plantão abaixo para carregar as informações predefinidas e economizar tempo na digitação.
+                  </p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-3xl">
+                      <button 
+                          onClick={() => { setFormData(getTemplateAlfa()); setView('form'); window.scrollTo(0,0); }} 
+                          className="relative bg-gradient-to-br from-blue-500 to-blue-700 text-white p-10 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-blue-500/30 hover:-translate-y-2 transition-all duration-300 group overflow-hidden"
+                      >
+                          <div className="absolute -top-10 -right-10 w-40 h-40 bg-white opacity-10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+                          <div className="flex flex-col items-center gap-3 relative z-10">
+                            <span className="text-6xl group-hover:scale-110 transition-transform duration-300 drop-shadow-md">☀️</span>
+                            <span className="text-4xl font-black tracking-wide mt-2">ALFA</span>
+                            <span className="bg-white/20 px-4 py-1 rounded-full text-sm font-bold tracking-widest uppercase backdrop-blur-sm">Diurno</span>
+                          </div>
+                      </button>
+                      
+                      <button 
+                          onClick={() => { setFormData(getTemplateBeta()); setView('form'); window.scrollTo(0,0); }} 
+                          className="relative bg-gradient-to-br from-emerald-500 to-teal-700 text-white p-10 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-emerald-500/30 hover:-translate-y-2 transition-all duration-300 group overflow-hidden"
+                      >
+                          <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white opacity-10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+                          <div className="flex flex-col items-center gap-3 relative z-10">
+                            <span className="text-6xl group-hover:scale-110 transition-transform duration-300 drop-shadow-md">🌿</span>
+                            <span className="text-4xl font-black tracking-wide mt-2">BETA</span>
+                            <span className="bg-white/20 px-4 py-1 rounded-full text-sm font-bold tracking-widest uppercase backdrop-blur-sm">Diurno</span>
+                          </div>
+                      </button>
+                  </div>
+                  
+                  <button onClick={() => { setFormData(getTemplateVazio()); setView('form'); window.scrollTo(0,0); }} className="mt-12 flex items-center gap-2 text-gray-400 hover:text-gray-700 transition-colors font-semibold py-2 px-4 rounded-xl hover:bg-gray-100">
+                      <span>✍️</span> Iniciar relatório em branco
+                  </button>
+              </div>
+          )}
 
-        {/* --- FORMULÁRIO PRINCIPAL --- */}
-        {view === 'form' && (
-            <form className="p-6 space-y-8" onSubmit={(e) => e.preventDefault()}>
-            
-            {formData.id && (
-                <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-900 p-4 mb-4 rounded shadow flex justify-between items-center animate-pulse">
-                    <div><p className="font-bold">⚠️ MODO DE EDIÇÃO</p><p className="text-sm">Está a alterar um relatório existente.</p></div>
-                    <button onClick={() => { if(confirm("Cancelar edição?")) setView('select-plantao'); }} className="bg-white text-yellow-700 px-3 py-1 rounded border border-yellow-300 font-bold hover:bg-yellow-50 text-sm">CANCELAR</button>
-                </div>
-            )}
-
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 flex justify-between items-center">
-                <div><label className="block text-xs font-bold text-blue-800 uppercase mb-1">Data</label><input type="text" name="data" value={formData.data} onChange={handleChange} className="w-40 p-2 border rounded bg-white font-mono text-gray-900" /></div>
-                <div className="text-xs text-blue-600 font-semibold hidden md:block">Logado como: {session.user.email}</div>
-            </div>
-            
-            {/* Secções Limpas (agora com Lápis de edição embutido nelas) */}
-            <EquipeSection formData={formData} onChange={handleChange} />
-            <MateriaisSection formData={formData} onChange={handleChange} />
-            <AlojamentosSection formData={formData} handleAlojamentoChange={handleAlojamentoChange} totalAtual={totalAtual} />
-            
-            <section className="relative mt-8">
-                <div className="flex justify-between items-center border-b-2 border-blue-200 mb-4 pb-2">
-                    <h3 className="flex items-center text-blue-900 font-bold text-xl"><span className="mr-2">📝</span> Resumo do Plantão</h3>
-                    <button type="button" onClick={toggleRecording} className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold shadow transition ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-blue-100 text-blue-900 hover:bg-blue-200'}`}>
-                        {isRecording ? <><span>⏹️</span> A gravar...</> : <><span>🎙️</span> Usar Microfone</>}
-                    </button>
-                </div>
-                <textarea name="resumoPlantao" value={formData.resumoPlantao} placeholder="Fale ou digite aqui os detalhes principais do plantão..." onChange={handleChange} className="w-full border p-3 rounded h-40 mb-6 outline-none text-lg text-gray-900"></textarea>
-            </section>
-
-            <OcorrenciasSection formData={formData} onChange={handleChange} gerenciarArray={gerenciarArray} />
-
-            <section className="bg-gray-50 p-4 rounded-lg border border-gray-200 mt-8">
-                <h3 className="text-blue-900 font-bold text-lg mb-4">📷 Fotos</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                    {formData.fotos.map((foto, idx) => (
-                        <div key={idx} className="relative group">
-                            <img src={foto} className="w-full h-24 object-cover rounded border" />
-                            <button type="button" onClick={() => setFormData(p => ({ ...p, fotos: p.fotos.filter((_, i) => i !== idx)}))} className="absolute top-0 right-0 bg-red-600 text-white p-1 rounded-bl text-xs font-bold">X</button>
+          {/* --- FORMULÁRIO PRINCIPAL --- */}
+          {view === 'form' && (
+              <form className="p-6 md:p-10 space-y-10 animate-fade-in-up" onSubmit={(e) => e.preventDefault()}>
+              
+              {formData.id && (
+                  <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-5 rounded-2xl shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl animate-pulse">⚠️</span>
+                        <div>
+                          <p className="font-black text-yellow-900">MODO DE EDIÇÃO ATIVO</p>
+                          <p className="text-sm opacity-90">As alterações substituirão os dados do relatório existente.</p>
                         </div>
-                    ))}
-                    <label className="border-2 border-dashed border-gray-300 rounded flex flex-col items-center justify-center h-24 cursor-pointer hover:bg-gray-100">
-                        <span className="text-2xl text-gray-400">+</span><span className="text-xs text-gray-500">Adicionar</span>
-                        <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
-                    </label>
-                </div>
-            </section>
+                      </div>
+                      <button onClick={() => { if(confirm("Cancelar edição? Todas as alterações não salvas serão perdidas.")) setView('select-plantao'); }} className="bg-white text-yellow-700 px-5 py-2.5 rounded-xl font-bold shadow-sm hover:bg-yellow-100 transition-colors w-full sm:w-auto">Cancelar Edição</button>
+                  </div>
+              )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-4 rounded-lg border border-gray-200 mt-8">
-                <div className="space-y-4">
-                    <label className="text-xs font-bold text-gray-500 uppercase block">Nome Supervisor Diurno</label>
-                    <input name="assinaturaDiurno" value={formData.assinaturaDiurno} onChange={handleChange} className="w-full border p-2 rounded text-gray-900" />
-                    <SignaturePad label="Assinatura Digital (Diurno)" onSave={(d) => setFormData(p => ({...p, assinaturaDiurnoImg: d}))} initialImage={formData.assinaturaDiurnoImg} />
-                </div>
-                <div className="space-y-4">
-                    <label className="text-xs font-bold text-gray-500 uppercase block">Nome Supervisor Noturno</label>
-                    <input name="assinaturaNoturno" value={formData.assinaturaNoturno} onChange={handleChange} className="w-full border p-2 rounded text-gray-900" />
-                    <SignaturePad label="Assinatura Digital (Noturno)" onSave={(d) => setFormData(p => ({...p, assinaturaNoturnoImg: d}))} initialImage={formData.assinaturaNoturnoImg} />
-                </div>
-            </div>
-            
-            <div className="pt-6 pb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex gap-2">
-                    <button type="button" onClick={() => gerarWord(formData)} className="flex-1 bg-blue-600 text-white font-bold py-4 rounded-xl shadow hover:bg-blue-700">📄 Word</button>
-                    <button type="button" onClick={() => gerarPDF(formData)} className="flex-1 bg-red-600 text-white font-bold py-4 rounded-xl shadow hover:bg-red-700">📄 PDF</button>
-                </div>
-                <div className="flex gap-2">
-                    <button type="button" onClick={handleSalvarApenas} className={`flex-1 ${formData.id ? 'bg-yellow-600' : 'bg-gray-700'} text-white font-bold py-4 rounded-xl shadow`}>
-                        {formData.id ? '💾 Salvar Alteração' : '💾 Salvar Novo'}
-                    </button>
-                    <button type="button" onClick={handleSaveAndSend} className="flex-1 bg-green-600 text-white font-bold py-4 rounded-xl shadow">📱 Zap + Salvar</button>
-                </div>
-            </div>
-            </form>
-        )}
+              <div className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-blue-100 p-2 rounded-lg text-blue-600">📅</div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Data do Plantão</label>
+                      <input type="text" name="data" value={formData.data} onChange={handleChange} className="w-36 bg-transparent font-black text-gray-800 text-lg outline-none border-b-2 border-transparent focus:border-blue-500 transition-colors" />
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-500 bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100 hidden md:flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    {session.user.email}
+                  </div>
+              </div>
+              
+              <div className="space-y-8 divide-y divide-gray-100">
+                <EquipeSection formData={formData} onChange={handleChange} />
+                <MateriaisSection formData={formData} onChange={handleChange} />
+                <AlojamentosSection formData={formData} handleAlojamentoChange={handleAlojamentoChange} totalAtual={totalAtual} />
+              </div>
+              
+              <section className="relative mt-12 bg-blue-50/50 p-6 rounded-3xl border border-blue-100">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                      <h3 className="flex items-center text-blue-900 font-black text-2xl tracking-tight">
+                        <span className="mr-3 bg-blue-600 text-white p-2 rounded-xl text-lg shadow-md shadow-blue-500/30">📝</span> 
+                        Resumo do Plantão
+                      </h3>
+                      <button type="button" onClick={toggleRecording} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all shadow-sm ${isRecording ? 'bg-red-500 text-white animate-pulse shadow-red-500/40' : 'bg-white text-blue-700 hover:bg-blue-100 border border-blue-200'}`}>
+                          {isRecording ? <><span>⏹️</span> Gravando...</> : <><span>🎙️</span> Ditar por Voz</>}
+                      </button>
+                  </div>
+                  <textarea name="resumoPlantao" value={formData.resumoPlantao} placeholder="Fale ou digite aqui os detalhes principais e observações gerais do plantão..." onChange={handleChange} className="w-full bg-white border border-gray-200 p-5 rounded-2xl h-48 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-400 transition-all text-gray-800 text-lg shadow-inner resize-none"></textarea>
+              </section>
+
+              <OcorrenciasSection formData={formData} onChange={handleChange} gerenciarArray={gerenciarArray} />
+
+              <section className="bg-gray-50 p-6 rounded-3xl border border-gray-200 mt-12">
+                  <h3 className="flex items-center text-gray-800 font-black text-xl mb-6">
+                    <span className="mr-2">📷</span> Galeria de Fotos
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      {formData.fotos.map((foto, idx) => (
+                          <div key={idx} className="relative group overflow-hidden rounded-2xl shadow-sm border border-gray-200 aspect-video">
+                              <img src={foto} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                              <button type="button" onClick={() => setFormData(p => ({ ...p, fotos: p.fotos.filter((_, i) => i !== idx)}))} className="absolute top-2 right-2 bg-red-500/90 backdrop-blur text-white w-8 h-8 flex items-center justify-center rounded-full font-bold opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-lg">X</button>
+                          </div>
+                      ))}
+                      <label className="border-2 border-dashed border-gray-300 rounded-2xl flex flex-col items-center justify-center aspect-video cursor-pointer hover:bg-gray-100 hover:border-gray-400 transition-all group">
+                          <span className="text-3xl text-gray-400 group-hover:scale-125 transition-transform group-hover:text-blue-500 mb-1">+</span>
+                          <span className="text-sm text-gray-500 font-semibold group-hover:text-blue-600">Adicionar Foto</span>
+                          <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
+                      </label>
+                  </div>
+              </section>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-gray-50 p-6 md:p-8 rounded-3xl border border-gray-200 mt-8">
+                  <div className="space-y-4">
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest block">Supervisor Diurno</label>
+                      <input name="assinaturaDiurno" value={formData.assinaturaDiurno} onChange={handleChange} placeholder="Nome do Supervisor" className="w-full bg-white border border-gray-200 p-4 rounded-xl text-gray-800 font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
+                      <div className="bg-white p-2 rounded-xl border border-gray-200 shadow-sm">
+                        <SignaturePad label="Assinatura Digital (Diurno)" onSave={(d) => setFormData(p => ({...p, assinaturaDiurnoImg: d}))} initialImage={formData.assinaturaDiurnoImg} />
+                      </div>
+                  </div>
+                  <div className="space-y-4">
+                      <label className="text-xs font-black text-gray-400 uppercase tracking-widest block">Supervisor Noturno</label>
+                      <input name="assinaturaNoturno" value={formData.assinaturaNoturno} onChange={handleChange} placeholder="Nome do Supervisor" className="w-full bg-white border border-gray-200 p-4 rounded-xl text-gray-800 font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
+                      <div className="bg-white p-2 rounded-xl border border-gray-200 shadow-sm">
+                        <SignaturePad label="Assinatura Digital (Noturno)" onSave={(d) => setFormData(p => ({...p, assinaturaNoturnoImg: d}))} initialImage={formData.assinaturaNoturnoImg} />
+                      </div>
+                  </div>
+              </div>
+              
+              {/* Barra de Ações Final (Sticky Bottom effect) */}
+              <div className="mt-12 p-6 bg-white rounded-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.05)] border border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex gap-4">
+                      <button type="button" onClick={() => gerarWord(formData)} className="flex-1 bg-blue-50 text-blue-700 font-bold py-4 rounded-2xl hover:bg-blue-100 hover:-translate-y-1 transition-all border border-blue-100 flex items-center justify-center gap-2">
+                        <span className="text-xl">📄</span> Gerar Word
+                      </button>
+                      <button type="button" onClick={() => gerarPDF(formData)} className="flex-1 bg-red-50 text-red-600 font-bold py-4 rounded-2xl hover:bg-red-100 hover:-translate-y-1 transition-all border border-red-100 flex items-center justify-center gap-2">
+                        <span className="text-xl">📄</span> Gerar PDF
+                      </button>
+                  </div>
+                  <div className="flex gap-4">
+                      <button type="button" onClick={handleSalvarApenas} className={`flex-1 flex items-center justify-center gap-2 ${formData.id ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/30' : 'bg-gray-800 hover:bg-gray-900 shadow-gray-900/30'} text-white font-bold py-4 rounded-2xl shadow-xl hover:-translate-y-1 transition-all`}>
+                          <span className="text-xl">💾</span> {formData.id ? 'Salvar Edição' : 'Apenas Salvar'}
+                      </button>
+                      <button type="button" onClick={handleSaveAndSend} className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-4 rounded-2xl shadow-xl shadow-green-500/30 hover:shadow-green-500/50 hover:-translate-y-1 transition-all flex items-center justify-center gap-2">
+                          <span className="text-xl">📱</span> Zap + Salvar
+                      </button>
+                  </div>
+              </div>
+              </form>
+          )}
+        </div>
       </div>
     </div>
   );
