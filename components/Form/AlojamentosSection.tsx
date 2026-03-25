@@ -1,51 +1,56 @@
 // components/Form/AlojamentosSection.tsx
-import { useState } from 'react';
+'use client';
+
 import { RelatorioData } from '@/types';
 
-interface AlojamentosSectionProps {
+interface Props {
   formData: RelatorioData;
   handleAlojamentoChange: (id: string, field: 'qtd' | 'nomes', value: string) => void;
   totalAtual: number;
 }
 
-const numAlojamentos = ['01', '02', '03', '04', '05', '06', '07', '08'];
-
-function AlojamentoRow({ num, data, handleAlojamentoChange }: any) {
-    const [isEditing, setIsEditing] = useState(false);
-    
-    if (isEditing) {
-        return (
-            <div className="bg-blue-50 p-3 rounded border border-blue-300 flex gap-2 items-center w-full">
-                <span className="font-bold text-blue-800 text-sm w-12">AL-{num}</span>
-                <input type="number" placeholder="Qtd" value={data.qtd} onChange={(e) => handleAlojamentoChange(num, 'qtd', e.target.value)} className="w-16 border p-2 text-center rounded font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" autoFocus onKeyDown={(e) => e.key === 'Enter' && setIsEditing(false)} />
-                <input type="text" placeholder="Nomes..." value={data.nomes} onChange={(e) => handleAlojamentoChange(num, 'nomes', e.target.value)} className="flex-1 border p-2 rounded text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500" onKeyDown={(e) => e.key === 'Enter' && setIsEditing(false)} />
-                <button type="button" onClick={() => setIsEditing(false)} className="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded font-bold transition">✔️</button>
-            </div>
-        );
-    }
-
-    return (
-        <div className="bg-gray-50 p-3 rounded border border-gray-200 flex justify-between items-center group cursor-pointer hover:bg-blue-50 transition" onClick={() => setIsEditing(true)}>
-            <div className="flex items-center gap-2 truncate">
-                <span className="font-bold text-blue-800 text-sm w-12">AL-{num}</span>
-                <span className="bg-gray-200 text-gray-800 font-bold px-2 py-1 rounded text-xs">{data.qtd || '0'}</span>
-                <span className="text-gray-700 text-sm truncate">{data.nomes || <span className="text-gray-400 italic">Sem nomes</span>}</span>
-            </div>
-            <button type="button" className="text-gray-400 hover:text-blue-600 opacity-50 group-hover:opacity-100 transition" title="Editar Alojamento">✏️</button>
-        </div>
-    );
-}
-
-export default function AlojamentosSection({ formData, handleAlojamentoChange, totalAtual }: AlojamentosSectionProps) {
+export default function AlojamentosSection({ formData, handleAlojamentoChange, totalAtual }: Props) {
   return (
-    <section>
-      <div className="flex justify-between items-center border-b-2 border-blue-200 mb-4 pb-2 mt-8">
-        <h3 className="flex items-center text-blue-900 font-bold text-xl"><span className="mr-2">🔢</span> Adolescentes</h3>
-        <div className="bg-blue-100 text-blue-900 px-3 py-1 rounded-full font-bold text-sm">Total: {totalAtual}</div>
+    <section className="bg-white p-6 md:p-8 rounded-3xl border border-gray-100 shadow-sm relative mt-10">
+      <div className="absolute -top-4 left-6 bg-teal-600 text-white px-4 py-1 rounded-full text-sm font-bold shadow-md tracking-wide flex items-center gap-2">
+        <span>🛏️</span> CONTROLE DE ALOJAMENTOS
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {numAlojamentos.map((num) => (
-          <AlojamentoRow key={num} num={num} data={formData.alojamentos[num]} handleAlojamentoChange={handleAlojamentoChange} />
+
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-4 mb-6 pb-4 border-b border-gray-100">
+        <p className="text-gray-500 text-sm">Registe a quantidade e os nomes dos adolescentes em cada quarto.</p>
+        <div className="bg-teal-50 text-teal-800 px-4 py-2 rounded-xl font-black text-lg border border-teal-100 shadow-inner flex items-center gap-2">
+          Total de Adolescentes: <span className="bg-white px-3 py-1 rounded-lg text-teal-600 shadow-sm">{totalAtual}</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {Object.entries(formData.alojamentos).map(([id, dados]) => (
+          <div key={id} className="bg-gray-50 p-4 rounded-2xl border border-gray-200 hover:border-teal-300 hover:shadow-md transition-all group focus-within:ring-2 focus-within:ring-teal-100">
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="font-black text-gray-700 text-lg flex items-center gap-1">
+                <span className="text-teal-500 text-sm">#</span>{id}
+              </h4>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-gray-400 uppercase">Qtd:</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={dados.qtd}
+                  onChange={(e) => handleAlojamentoChange(id, 'qtd', e.target.value)}
+                  className="w-16 bg-white border border-gray-300 p-1.5 rounded-lg text-center font-bold text-gray-800 outline-none focus:border-teal-500 transition-colors shadow-sm"
+                />
+              </div>
+            </div>
+            <div>
+              <input
+                type="text"
+                placeholder="Nomes (separados por vírgula)"
+                value={dados.nomes}
+                onChange={(e) => handleAlojamentoChange(id, 'nomes', e.target.value)}
+                className="w-full bg-white border border-gray-200 p-2.5 rounded-xl outline-none focus:border-teal-500 transition-colors text-sm text-gray-700 shadow-sm"
+              />
+            </div>
+          </div>
         ))}
       </div>
     </section>
