@@ -12,170 +12,261 @@ if (typeof window !== 'undefined' && pdfMake.vfs === undefined) {
   pdfMake.vfs = pdfFonts.pdfMake ? pdfFonts.pdfMake.vfs : pdfFonts.vfs;
 }
 
+// Função auxiliar para criar cabeçalhos de secção bonitos com fundo colorido
+const criarCabecalhoSecao = (titulo: string, corFundo: string = '#1e3a8a') => ({
+  table: {
+    widths: ['*'],
+    body: [[{ text: titulo, bold: true, color: '#ffffff', fillColor: corFundo, margin: [5, 4, 5, 4], alignment: 'center' }]]
+  },
+  layout: 'noBorders',
+  margin: [0, 15, 0, 10]
+});
+
 export const gerarPDF = async (dados: RelatorioData) => {
   const total = calcularTotalAdolescentes(dados);
 
   try {
     const logoBase64 = await getBase64ImageFromURL('/logo.png');
+    
     const contentArray: any[] = [
-        logoBase64 ? { image: logoBase64, width: 320, alignment: 'center', margin: [0, 0, 0, 5] } : {},
-        { text: 'RELATÓRIO EQUIPE DE SEGURANÇA – CSIPRC', style: 'header', alignment: 'center' },
-        { text: `Data: ${dados.data}`, style: 'subheader', alignment: 'center', margin: [0, 0, 0, 10] }, 
-        {
-          columns: [
-            { width: '*', stack: [
-              { text: [{ text: 'COORDENADOR: ', bold: true }, dados.coordenador], fontSize: 10 },
-              { text: [{ text: 'SUPERVISOR: ', bold: true }, dados.supervisor], fontSize: 10 },
-            ]},
-            { width: '*', stack: [
-               { text: [{ text: 'PLANTÃO: ', bold: true }, dados.plantao], fontSize: 10 },
-               { text: [{ text: 'EDUCADORES: ', bold: true }, dados.educadores], fontSize: 10 }
-            ]}
-          ], margin: [0, 2]
-        }
+      // LOGO
+      logoBase64 ? { image: logoBase64, width: 250, alignment: 'center', margin: [0, 0, 0, 10] } : {},
+      
+      // TÍTULO PRINCIPAL
+      { text: 'RELATÓRIO DIÁRIO DE PLANTÃO DE SEGURANÇA', style: 'mainTitle' },
+      { text: 'CENTRO SÓCIOEDUCATIVO DE INTERNAÇÃO PROVISÓRIA DA REGIÃO DOS COCAIS - CSIPRC', style: 'subTitle' },
+      { text: `DATA DO PLANTÃO: ${dados.data}`, style: 'dateTitle' },
+      
+      // 1. DADOS DA EQUIPE
+      criarCabecalhoSecao('📋 DADOS DA EQUIPE', '#1e3a8a'),
+      {
+        table: {
+          widths: ['*', '*'],
+          body: [
+            [
+              { text: [{ text: 'Coordenador: ', bold: true }, dados.coordenador || '-'] },
+              { text: [{ text: 'Supervisor: ', bold: true }, dados.supervisor || '-'] }
+            ],
+            [
+              { text: [{ text: 'Plantão: ', bold: true }, dados.plantao || '-'] },
+              { text: [{ text: 'Educadores: ', bold: true }, dados.educadores || '-'] }
+            ]
+          ]
+        },
+        layout: 'lightHorizontalLines',
+        margin: [0, 0, 0, 5],
+        fontSize: 10
+      }
     ];
 
+    // EQUIPE DE APOIO
+    contentArray.push({
+      table: {
+        widths: ['*', '*'],
+        body: [
+          [
+            { text: [{ text: 'Portaria: ', bold: true }, dados.portaria || '-'], fillColor: '#f8fafc' },
+            { text: [{ text: 'Cozinha: ', bold: true }, dados.cozinha || '-'], fillColor: '#f8fafc' }
+          ],
+          [
+            { text: [{ text: 'Serv. Gerais: ', bold: true }, dados.servicosGerais || '-'], fillColor: '#f8fafc' },
+            { text: [{ text: 'Apoio Geral: ', bold: true }, dados.apoio || '-'], fillColor: '#f8fafc' }
+          ]
+        ]
+      },
+      layout: 'lightHorizontalLines',
+      margin: [0, 0, 0, 5],
+      fontSize: 10
+    });
+
+    // EXTRAS (Folgas, Férias)
     const extras = [];
-    if (dados.temFolga) extras.push({ text: `FOLGA: ${dados.educadoresFolga}`, fontSize: 9 });
-    if (dados.temFerias) extras.push({ text: `FÉRIAS: ${dados.educadoresFerias}`, fontSize: 9 });
-    if (dados.temApoioSemiliberdade) extras.push({ text: `APOIO SEMI: ${dados.educadoresApoioSemiliberdade}`, fontSize: 9 });
-    if(extras.length > 0) contentArray.push({ columns: extras, margin: [0, 2] });
+    if (dados.temFolga) extras.push({ text: `Folgas: ${dados.educadoresFolga}` });
+    if (dados.temFerias) extras.push({ text: `Férias/Atestado: ${dados.educadoresFerias}` });
+    if (dados.temApoioSemiliberdade) extras.push({ text: `Apoio Semiliberdade: ${dados.educadoresApoioSemiliberdade}` });
+    
+    if (extras.length > 0) {
+      contentArray.push({
+        table: { widths: ['*'], body: [[ { stack: extras, color: '#475569', fontSize: 9, italics: true } ]] },
+        layout: 'noBorders',
+        margin: [0, 2, 0, 5]
+      });
+    }
 
+    // 2. MATERIAIS DE SEGURANÇA
     contentArray.push(
-        { text: 'EQUIPE DE APOIO', style: 'sectionHeader', alignment: 'center' },
-        { columns: [
-            { width: '*', text: [{ text: 'Portaria: ', bold: true }, dados.portaria || '-'], fontSize: 10 },
-            { width: '*', text: [{ text: 'Cozinha: ', bold: true }, dados.cozinha || '-'], fontSize: 10 },
-            { width: '*', text: [{ text: 'Serv. Gerais: ', bold: true }, dados.servicosGerais || '-'], fontSize: 10 },
-            { width: '*', text: [{ text: 'Outros: ', bold: true }, dados.apoio || '-'], fontSize: 10 }
-        ], margin: [0, 2] }
-    );
-
-    contentArray.push(
-        { text: 'MATERIAIS DE SEGURANÇA', style: 'sectionHeader', alignment: 'center' },
-        {
-          style: 'tableExample',
-          table: {
-            widths: ['*', 'auto', '*', 'auto'],
-            body: [
-              [{ text: 'ITEM', bold: true, fillColor: '#eeeeee', fontSize: 9 }, { text: 'QTD', bold: true, fillColor: '#eeeeee', fontSize: 9 }, { text: 'ITEM', bold: true, fillColor: '#eeeeee', fontSize: 9 }, { text: 'QTD', bold: true, fillColor: '#eeeeee', fontSize: 9 }],
-              ['Tonfas', dados.tonfas || '0', 'Celular + Carregador', dados.celular || '0'],
-              ['Algemas', dados.algemas || '0', 'Rádio Celular', dados.radioCelular || '0'],
-              ['Chaves Acesso', dados.chavesAcesso || '0', 'Rádio HT', dados.radioHT || '0'],
-              ['Chaves Algemas', dados.chavesAlgemas || '0', 'Cadeados', dados.cadeados || '0'],
-              ['Escudos', dados.escudos || '0', 'Pendrives', dados.pendrives || '0'],
-              ['Lanternas', dados.lanternas || '0', '', ''],
-            ]
-          }, layout: 'lightHorizontalLines', margin: [0, 2, 0, 5]
+      criarCabecalhoSecao('🎒 CONFERÊNCIA DE MATERIAIS', '#475569'),
+      {
+        table: {
+          widths: ['*', 'auto', '*', 'auto'],
+          body: [
+            [
+              { text: 'ITEM', bold: true, fillColor: '#e2e8f0', alignment: 'center' }, 
+              { text: 'QTD', bold: true, fillColor: '#e2e8f0', alignment: 'center' }, 
+              { text: 'ITEM', bold: true, fillColor: '#e2e8f0', alignment: 'center' }, 
+              { text: 'QTD', bold: true, fillColor: '#e2e8f0', alignment: 'center' }
+            ],
+            ['Tonfas', { text: dados.tonfas || '0', alignment: 'center' }, 'Celular + Carregador', { text: dados.celular || '0', alignment: 'center' }],
+            ['Algemas', { text: dados.algemas || '0', alignment: 'center' }, 'Rádio Celular', { text: dados.radioCelular || '0', alignment: 'center' }],
+            ['Chaves Acesso', { text: dados.chavesAcesso || '0', alignment: 'center' }, 'Rádio HT', { text: dados.radioHT || '0', alignment: 'center' }],
+            ['Chaves Algemas', { text: dados.chavesAlgemas || '0', alignment: 'center' }, 'Cadeados', { text: dados.cadeados || '0', alignment: 'center' }],
+            ['Escudos', { text: dados.escudos || '0', alignment: 'center' }, 'Pendrives', { text: dados.pendrives || '0', alignment: 'center' }],
+            ['Lanternas', { text: dados.lanternas || '0', alignment: 'center' }, '', ''],
+          ]
+        }, 
+        layout: {
+          hLineWidth: (i: any, node: any) => (i === 0 || i === node.table.body.length) ? 1 : 0.5,
+          vLineWidth: () => 0.5,
+          hLineColor: () => '#cbd5e1',
+          vLineColor: () => '#cbd5e1',
         },
-        { text: 'ADOLESCENTES POR ALOJAMENTO', style: 'sectionHeader', alignment: 'center' }
+        margin: [0, 0, 0, 10],
+        fontSize: 10
+      }
     );
+
+    // 3. ALOJAMENTOS
+    contentArray.push(criarCabecalhoSecao('🛏️ ADOLESCENTES POR ALOJAMENTO', '#0d9488'));
 
     const alojamentosLeft = [];
     const alojamentosRight = [];
-    ['01', '02', '03', '04'].forEach(num => alojamentosLeft.push({ text: [{ text: `AL-${num}: `, bold: true }, { text: `${dados.alojamentos[num].qtd || '0'} - ` }, { text: dados.alojamentos[num].nomes || '', italics: true }], fontSize: 9, margin: [0, 1] }));
-    ['05', '06', '07', '08'].forEach(num => alojamentosRight.push({ text: [{ text: `AL-${num}: `, bold: true }, { text: `${dados.alojamentos[num].qtd || '0'} - ` }, { text: dados.alojamentos[num].nomes || '', italics: true }], fontSize: 9, margin: [0, 1] }));
+    
+    ['01', '02', '03', '04'].forEach(num => alojamentosLeft.push({ text: [{ text: `AL-${num} [${dados.alojamentos[num].qtd || '0'}]: `, bold: true, color: '#0f766e' }, { text: dados.alojamentos[num].nomes || 'Vazio', italics: true }], margin: [0, 4] }));
+    ['05', '06', '07', '08'].forEach(num => alojamentosRight.push({ text: [{ text: `AL-${num} [${dados.alojamentos[num].qtd || '0'}]: `, bold: true, color: '#0f766e' }, { text: dados.alojamentos[num].nomes || 'Vazio', italics: true }], margin: [0, 4] }));
 
-    contentArray.push({
+    contentArray.push(
+      {
         columns: [
-            { width: '*', stack: alojamentosLeft as any },
-            { width: '*', stack: alojamentosRight as any }
-        ]
-    });
+          { width: '50%', stack: alojamentosLeft as any, padding: [0, 0, 10, 0] },
+          { width: '50%', stack: alojamentosRight as any, padding: [10, 0, 0, 0] }
+        ],
+        fontSize: 10
+      },
+      { 
+        text: `TOTAL DE ADOLESCENTES NO PLANTÃO: ${total}`, 
+        bold: true, alignment: 'right', fontSize: 11, margin: [0, 15, 0, 10], color: '#0f766e' 
+      }
+    );
 
-    contentArray.push({ text: `TOTAL DE ADOLESCENTES: ${total}`, bold: true, alignment: 'right', fontSize: 11, margin: [0, 2, 0, 5], color: '#1e3a8a' });
-
-    contentArray.push({ text: 'RESUMO DO PLANTÃO', style: 'sectionHeader', alignment: 'center', margin: [0, 5, 0, 2] });
+    // 4. RESUMO DO PLANTÃO
+    contentArray.push(criarCabecalhoSecao('📝 RESUMO E OBSERVAÇÕES DO PLANTÃO', '#1e3a8a'));
     
     const linhasResumo = converterParaLista(dados.resumoPlantao);
     if (linhasResumo.length > 0) {
-        contentArray.push({ ul: linhasResumo, fontSize: 10, margin: [10, 0, 0, 10], alignment: 'justify' });
+      contentArray.push({ ul: linhasResumo, fontSize: 10, margin: [15, 0, 5, 10], alignment: 'justify', lineHeight: 1.3 });
     } else {
-        contentArray.push({ text: "Sem observações.", fontSize: 10, alignment: 'center', margin: [0, 0, 0, 10] });
+      contentArray.push({ text: "Nenhuma observação registada para este plantão.", fontSize: 10, alignment: 'center', italics: true, color: '#64748b' });
     }
 
-    if (dados.temSaida) {
-      contentArray.push(
-          { text: 'SAÍDA EXTERNA', style: 'sectionHeader', alignment: 'center', color: '#b91c1c' },
-          { columns: [{ width: '*', text: [{ text: 'Adolescente: ', bold: true }, dados.saidaAdolescente], fontSize: 10 }, { width: '*', text: [{ text: 'Horário: ', bold: true }, dados.saidaHorario], fontSize: 10 }], margin: [0, 2] },
-          { text: [{ text: 'Educador Responsável: ', bold: true }, dados.saidaEducador], margin: [0, 0, 0, 5], fontSize: 10 }
-      );
-    }
+    // 5. OCORRÊNCIAS
+    const temOcorrencia = dados.temSaida || dados.temAdmissao || dados.temDesligamento;
+    if (temOcorrencia) {
+        contentArray.push(criarCabecalhoSecao('🚨 OCORRÊNCIAS REGISTRADAS', '#b91c1c'));
 
-    if (dados.temAdmissao) {
-        contentArray.push({ text: 'ADMISSÃO DE ADOLESCENTE', style: 'sectionHeader', alignment: 'center', color: '#15803d' });
-        if(dados.admissoes && dados.admissoes.length > 0) {
+        if (dados.temSaida) {
+          contentArray.push(
+              { text: '▶ SAÍDA EXTERNA', bold: true, color: '#b91c1c', margin: [0, 5, 0, 2], fontSize: 11 },
+              {
+                  table: {
+                      widths: ['*', '*', '*'],
+                      body: [[
+                          { text: [{ text: 'Adolescente: ', bold: true }, dados.saidaAdolescente], fontSize: 10 },
+                          { text: [{ text: 'Educador: ', bold: true }, dados.saidaEducador], fontSize: 10 },
+                          { text: [{ text: 'Horário: ', bold: true }, dados.saidaHorario], fontSize: 10 }
+                      ]]
+                  },
+                  layout: 'lightHorizontalLines',
+                  margin: [0, 0, 0, 10]
+              }
+          );
+        }
+
+        if (dados.temAdmissao && dados.admissoes && dados.admissoes.length > 0) {
+            contentArray.push({ text: '▶ ADMISSÕES', bold: true, color: '#15803d', margin: [0, 5, 0, 2], fontSize: 11 });
             dados.admissoes.forEach(a => {
                 contentArray.push({ 
                     text: [
-                        { text: `• ${a.nome}`, bold: true },
-                        { text: ` | Recebido: ${a.quemRecebeu} | Vist: ${a.quemVistoria} | Origem: ${a.origem} | Hora: ${a.horario}`, fontSize: 9 }
-                    ], margin: [10, 0, 0, 2] 
+                        { text: `• Adolescente: ${a.nome}\n`, bold: true },
+                        { text: `  Recebido por: ${a.quemRecebeu} | Vistoriado por: ${a.quemVistoria} | Origem: ${a.origem} | Horário: ${a.horario}`, fontSize: 9, color: '#334155' }
+                    ], margin: [10, 0, 0, 8] 
                 });
             });
         }
-    }
 
-    if (dados.temDesligamento) {
-        contentArray.push({ text: 'DESLIGAMENTO', style: 'sectionHeader', alignment: 'center', color: '#b91c1c' });
-        if(dados.desligamentos && dados.desligamentos.length > 0) {
+        if (dados.temDesligamento && dados.desligamentos && dados.desligamentos.length > 0) {
+            contentArray.push({ text: '▶ DESLIGAMENTOS', bold: true, color: '#b91c1c', margin: [0, 5, 0, 2], fontSize: 11 });
             dados.desligamentos.forEach(d => {
                 contentArray.push({ 
                     text: [
-                        { text: `• ${d.nome}`, bold: true },
-                        { text: ` | Levou: ${d.quemLevou} | Mot: ${d.motorista} | Vist: ${d.quemVistoria} | Hora: ${d.horario}`, fontSize: 9 }
-                    ], margin: [10, 0, 0, 2] 
+                        { text: `• Adolescente: ${d.nome}\n`, bold: true },
+                        { text: `  Levado por: ${d.quemLevou} | Motorista: ${d.motorista} | Vistoriado por: ${d.quemVistoria} | Horário: ${d.horario}`, fontSize: 9, color: '#334155' }
+                    ], margin: [10, 0, 0, 8] 
                 });
             });
         }
     }
 
+    // 6. ASSINATURAS (Protegido de quebra de página)
     contentArray.push({ 
         unbreakable: true, 
+        margin: [0, 30, 0, 0],
         stack: [
-          { canvas: [{ type: 'line', x1: 0, y1: 5, x2: 515, y2: 5, lineWidth: 1 }], margin: [0, 0, 0, 10] },
+          { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1, lineColor: '#cbd5e1' }], margin: [0, 0, 0, 20] },
           {
               columns: [
                   { width: '*', stack: [
-                      dados.assinaturaDiurnoImg ? { image: dados.assinaturaDiurnoImg, width: 100, alignment: 'center' } : {},
-                      { text: '_________________________', alignment: 'center' },
-                      { text: dados.assinaturaDiurno || '(Sem nome)', bold: true, alignment: 'center', fontSize: 9 },
-                      { text: 'Supervisor Diurno', alignment: 'center', fontSize: 8 }
+                      dados.assinaturaDiurnoImg ? { image: dados.assinaturaDiurnoImg, width: 120, alignment: 'center' } : { text: '\n\n\n' },
+                      { text: '________________________________', alignment: 'center' },
+                      { text: dados.assinaturaDiurno || '(Sem nome registrado)', bold: true, alignment: 'center', fontSize: 10, margin: [0, 2, 0, 0] },
+                      { text: 'Supervisor Plantão Diurno', alignment: 'center', fontSize: 8, color: '#64748b' }
                   ]},
                   { width: '*', stack: [
-                      dados.assinaturaNoturnoImg ? { image: dados.assinaturaNoturnoImg, width: 100, alignment: 'center' } : {},
-                      { text: '_________________________', alignment: 'center' },
-                      { text: dados.assinaturaNoturno || '(Sem nome)', bold: true, alignment: 'center', fontSize: 9 },
-                      { text: 'Supervisor Noturno', alignment: 'center', fontSize: 8 }
+                      dados.assinaturaNoturnoImg ? { image: dados.assinaturaNoturnoImg, width: 120, alignment: 'center' } : { text: '\n\n\n' },
+                      { text: '________________________________', alignment: 'center' },
+                      { text: dados.assinaturaNoturno || '(Sem nome registrado)', bold: true, alignment: 'center', fontSize: 10, margin: [0, 2, 0, 0] },
+                      { text: 'Supervisor Plantão Noturno', alignment: 'center', fontSize: 8, color: '#64748b' }
                   ]}
               ]
           }
         ]
     });
 
+    // 7. FOTOS
     if (dados.fotos && dados.fotos.length > 0) {
-        contentArray.push({ text: 'REGISTROS FOTOGRÁFICOS', style: 'sectionHeader', alignment: 'center', pageBreak: 'before', margin: [0, 10, 0, 10] });
+        contentArray.push(
+            { text: '', pageBreak: 'before' }, // Força a quebra de página
+            criarCabecalhoSecao('📷 REGISTROS FOTOGRÁFICOS', '#475569')
+        );
         const fotosGrid = [];
         for (let i = 0; i < dados.fotos.length; i += 2) {
             const row = {
                 columns: [
-                    { image: dados.fotos[i], width: 250, margin: [0, 5, 5, 5] },
-                    dados.fotos[i+1] ? { image: dados.fotos[i+1], width: 250, margin: [5, 5, 0, 5] } : {}
-                ]
+                    { image: dados.fotos[i], width: 240, alignment: 'center', margin: [0, 0, 5, 10] },
+                    dados.fotos[i+1] ? { image: dados.fotos[i+1], width: 240, alignment: 'center', margin: [5, 0, 0, 10] } : { text: '', width: 240 }
+                ],
+                alignment: 'center'
             };
             fotosGrid.push(row);
         }
-        contentArray.push(fotosGrid);
+        contentArray.push({ stack: fotosGrid, margin: [0, 10, 0, 0] });
     }
 
+    // DEFINIÇÃO FINAL E GERAÇÃO
     const docDefinition: any = { 
-        pageSize: 'A4', pageMargins: [15, 15, 15, 15], content: contentArray, 
-        defaultStyle: { fontSize: 10 },
-        styles: { header: { fontSize: 16, bold: true, margin: [0, 0, 0, 2] }, subheader: { fontSize: 12, bold: true }, sectionHeader: { fontSize: 11, bold: true, decoration: 'underline', margin: [0, 5, 0, 2] }, tableExample: { margin: [0, 2, 0, 5] } } 
+        pageSize: 'A4', 
+        pageMargins: [30, 30, 30, 30], 
+        content: contentArray, 
+        defaultStyle: { fontSize: 10, color: '#0f172a' },
+        styles: { 
+            mainTitle: { fontSize: 16, bold: true, alignment: 'center', color: '#1e3a8a', margin: [0, 0, 0, 2] }, 
+            subTitle: { fontSize: 9, bold: true, alignment: 'center', color: '#64748b', margin: [0, 0, 0, 15] }, 
+            dateTitle: { fontSize: 11, bold: true, alignment: 'center', color: '#b91c1c', margin: [0, 0, 0, 10], decoration: 'underline' } 
+        } 
     };
-    pdfMake.createPdf(docDefinition).download(`Relatorio_PDF_${dados.data.replace(/\//g, '-')}.pdf`);
+    
+    pdfMake.createPdf(docDefinition).download(`Relatorio_${dados.plantao || 'Plantao'}_${dados.data.replace(/\//g, '-')}.pdf`);
   } catch (err) { 
     console.error(err);
-    alert("Erro ao gerar PDF."); 
+    alert("Erro ao gerar o PDF. Verifique se as imagens anexadas não são muito pesadas."); 
   }
 };
