@@ -31,13 +31,11 @@ const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'admin@csiprc.com';
 const TEMPO_INATIVIDADE = 5 * 60 * 1000; 
 const TEMPO_AVISO = 4.5 * 60 * 1000;
 
-// --- TEMPLATES PREDEFINIDOS ---
+// --- DADOS PADRÃO ---
 const getBaseData = (): RelatorioData => ({
     data: new Date().toLocaleDateString('pt-BR'),
     coordenador: 'Erasmo Leite', supervisor: '', educadores: '', apoio: '', cozinha: '', servicosGerais: '', portaria: '', plantao: '',
-    // MATERIAIS PADRÃO PARA ALFA E BETA
     tonfas: '08', algemas: '03', chavesAcesso: '30', chavesAlgemas: '02', escudos: '02', lanternas: '02', celular: '01', radioCelular: '0', radioHT: '04', cadeados: '30', pendrives: '02',
-    // ALOJAMENTOS PADRÃO PARA ALFA E BETA
     alojamentos: {
         '01': { qtd: '02', nomes: 'Mateus, Felipe' },
         '02': { qtd: '02', nomes: 'Carlos, Evanderson' },
@@ -49,30 +47,10 @@ const getBaseData = (): RelatorioData => ({
         '08': { qtd: '01', nomes: 'Tarcio' }
     },
     resumoPlantao: '', assinaturaDiurno: '', assinaturaNoturno: '', assinaturaDiurnoImg: '', assinaturaNoturnoImg: '', fotos: [],
-    temSaida: false, saidaAdolescente: '', saidaEducador: '', saidaHorario: '',
+    temSaida: false, saidas: [], saidaAdolescente: '', saidaEducador: '', saidaHorario: '',
     temAdmissao: false, admissoes: [], temDesligamento: false, desligamentos: [],
     temFolga: false, educadoresFolga: '', temFerias: false, educadoresFerias: '', temApoioSemiliberdade: false, educadoresApoioSemiliberdade: '',
     historicoEdicoes: []
-});
-
-const getTemplateAlfa = (): RelatorioData => ({
-    ...getBaseData(),
-    supervisor: 'Rosem',
-    plantao: 'Alfa Diurno',
-    educadores: 'Júnior, Wellington, Gleidson, Anderson, Francilio, Elizandria, Diego',
-    portaria: 'Paulo',
-    cozinha: 'Liliane',
-    servicosGerais: 'Ana'
-});
-
-const getTemplateBeta = (): RelatorioData => ({
-    ...getBaseData(),
-    supervisor: 'Jailson',
-    plantao: 'Beta Diurno',
-    educadores: 'Wilson/Maria José/Marcos Paulo/marciana/wrobison/Orlando',
-    portaria: 'Paulo',
-    cozinha: 'IVA',
-    servicosGerais: 'Francisca'
 });
 
 const getTemplateVazio = (): RelatorioData => ({
@@ -82,25 +60,108 @@ const getTemplateVazio = (): RelatorioData => ({
     cozinha: '', servicosGerais: '', portaria: '', educadores: '', supervisor: '', plantao: ''
 });
 
+// Equipes padrão iniciais (caso não haja nada salvo)
+const defaultEquipes = {
+    ALFA: { supervisor: 'Rosem', educadores: 'Júnior, Wellington, Gleidson, Anderson, Francilio, Elizandria, Diego', portaria: 'Paulo', cozinha: 'Liliane', servicosGerais: 'Ana' },
+    BETA: { supervisor: 'Jailson', educadores: 'Wilson/Maria José/Marcos Paulo/marciana/wrobison/Orlando', portaria: 'Paulo', cozinha: 'IVA', servicosGerais: 'Francisca' }
+};
+
 export default function Home() {
   const [session, setSession] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   
-  // view inicial é agora a seleção do plantão
-  const [view, setView] = useState<'select-plantao' | 'form' | 'history' | 'admin'>('select-plantao');
+  const [view, setView] = useState<'select-plantao' | 'form' | 'history' | 'admin' | 'manage-team'>('select-plantao');
   const [historico, setHistorico] = useState<RelatorioData[]>([]);
   const [selectedReport, setSelectedReport] = useState<RelatorioData | null>(null);
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [formData, setFormData] = useState<RelatorioData>(getTemplateVazio());
   
+  const [equipes, setEquipes] = useState<any>(defaultEquipes);
+  const [editandoEquipe, setEditandoEquipe] = useState<'ALFA' | 'BETA'>('ALFA');
+
   const logoutTimerRef = useRef<NodeJS.Timeout | null>(null);
   const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
   const recognitionRef = useRef<any>(null);
   const baseTextRef = useRef<string>(''); 
 
-  // --- Autenticação & Sessão ---
+  // --- Base de Dados (Supabase) ---
+  // Movido para cima para ser acessível nos UseEffects
+  const fetchHistory = useCallback(async () => {
+    setLoading(true);
+    const { data } = await supabase.from('relatorios').select('*').order('created_at', { ascending: false });
+    setLoading(false);
+    if (data) {
+      setHistorico(data.map((item: any) => ({
+        ...item, data: item.data_plantao, apoio: item.apoio_geral || item.servicos_gerais || '', 
+        coordenador: item.coordenador || 'Erasmo Leite', cozinha: item.equipe_cozinha || '',
+        servicosGerais: item.equipe_servicos_gerais || '', portaria: item.equipe_portaria || '',
+        resumoPlantao: item.resumo_plantao, assinaturaDiurno: item.plantao_diurno, assinaturaNoturno: item.plantao_noturno, 
+        assinaturaDiurnoImg: item.assinatura_diurno_img || '', assinaturaNoturnoImg: item.assinatura_noturno_img || '',
+        fotos: item.fotos || [], alojamentos: item.alojamentos || {},
+        temSaida: item.tem_saida || false, saidas: item.saidas || [], saidaAdolescente: item.saida_adolescente || '', saidaEducador: item.saida_educador || '', saidaHorario: item.saida_horario || '',
+        temAdmissao: item.tem_admissao || false, admissoes: item.admissoes || [],
+        temDesligamento: item.tem_desligamento || false, desligamentos: item.desligamentos || [],
+        temFolga: item.tem_folga || false, educadoresFolga: item.educadores_folga || '',
+        temFerias: item.tem_ferias || false, educadoresFerias: item.educadores_ferias || '',
+        temApoioSemiliberdade: item.tem_apoio_semiliberdade || false, educadoresApoioSemiliberdade: item.educadores_apoio_semiliberdade || '',
+        tonfas: item.tonfas, algemas: item.algemas, chavesAcesso: item.chaves_acesso, chavesAlgemas: item.chaves_algemas, escudos: item.escudos, lanternas: item.lanternas, celular: item.celular, radioCelular: item.radio_celular, radioHT: item.radio_ht, cadeados: item.cadeados, pendrives: item.pendrives,
+        historicoEdicoes: item.historico_edicoes || []
+      })));
+    }
+  }, []);
+
+  // Carregar histórico em Background assim que houver sessão logada
+  useEffect(() => {
+    if (session) fetchHistory();
+  }, [session, fetchHistory]);
+
+  useEffect(() => {
+    const equipesSalvas = localStorage.getItem('equipes_cadastradas');
+    if (equipesSalvas) setEquipes(JSON.parse(equipesSalvas));
+  }, []);
+
+  const handleSalvarEquipes = () => {
+      localStorage.setItem('equipes_cadastradas', JSON.stringify(equipes));
+      alert('✅ Equipes atualizadas com sucesso!');
+      setView('select-plantao');
+  };
+
+  const handleSelectPlantao = (tipo: 'ALFA' | 'BETA') => {
+      const base = getBaseData();
+      const equipe = equipes[tipo];
+      
+      // Busca o ÚLTIMO plantão salvo no banco (o index 0 do histórico é o mais recente por causa do order descending)
+      const ultimo = historico.length > 0 ? historico[0] : null;
+      
+      setFormData({
+          ...base,
+          plantao: tipo === 'ALFA' ? 'Alfa Diurno' : 'Beta Diurno',
+          supervisor: equipe.supervisor || '',
+          educadores: equipe.educadores || '',
+          portaria: equipe.portaria || '',
+          cozinha: equipe.cozinha || '',
+          servicosGerais: equipe.servicosGerais || '',
+          
+          // --- HERANÇA INTELIGENTE DE MATERIAIS E ALOJAMENTOS ---
+          tonfas: ultimo?.tonfas || base.tonfas,
+          algemas: ultimo?.algemas || base.algemas,
+          chavesAcesso: ultimo?.chavesAcesso || base.chavesAcesso,
+          chavesAlgemas: ultimo?.chavesAlgemas || base.chavesAlgemas,
+          escudos: ultimo?.escudos || base.escudos,
+          lanternas: ultimo?.lanternas || base.lanternas,
+          celular: ultimo?.celular || base.celular,
+          radioCelular: ultimo?.radioCelular || base.radioCelular,
+          radioHT: ultimo?.radioHT || base.radioHT,
+          cadeados: ultimo?.cadeados || base.cadeados,
+          pendrives: ultimo?.pendrives || base.pendrives,
+          alojamentos: ultimo?.alojamentos || base.alojamentos,
+      });
+      setView('form');
+      window.scrollTo(0,0);
+  };
+
   const handleLogout = useCallback(async () => {
     if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
     if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
@@ -129,7 +190,7 @@ export default function Home() {
   useEffect(() => {
     const checkSession = async () => {
         const { data, error } = await supabase.auth.getSession();
-        if (!error) setSession(data.session);
+        if (!error && data.session) setSession(data.session);
         setAuthLoading(false);
     };
     checkSession();
@@ -154,7 +215,6 @@ export default function Home() {
     if (error) alert("Erro: " + error.message); else alert("Usuário criado!");
   };
 
-  // --- Handlers do Formulário ---
   const handleChange = (e: any) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
@@ -224,31 +284,6 @@ export default function Home() {
     setIsRecording(true);
   };
 
-  // --- Base de Dados (Supabase) ---
-  const fetchHistory = async () => {
-    setLoading(true);
-    const { data } = await supabase.from('relatorios').select('*').order('created_at', { ascending: false });
-    setLoading(false);
-    if (data) {
-      setHistorico(data.map((item: any) => ({
-        ...item, data: item.data_plantao, apoio: item.apoio_geral || item.servicos_gerais || '', 
-        coordenador: item.coordenador || 'Erasmo Leite', cozinha: item.equipe_cozinha || '',
-        servicosGerais: item.equipe_servicos_gerais || '', portaria: item.equipe_portaria || '',
-        resumoPlantao: item.resumo_plantao, assinaturaDiurno: item.plantao_diurno, assinaturaNoturno: item.plantao_noturno, 
-        assinaturaDiurnoImg: item.assinatura_diurno_img || '', assinaturaNoturnoImg: item.assinatura_noturno_img || '',
-        fotos: item.fotos || [], alojamentos: item.alojamentos || {},
-        temSaida: item.tem_saida || false, saidaAdolescente: item.saida_adolescente || '', saidaEducador: item.saida_educador || '', saidaHorario: item.saida_horario || '',
-        temAdmissao: item.tem_admissao || false, admissoes: item.admissoes || [],
-        temDesligamento: item.tem_desligamento || false, desligamentos: item.desligamentos || [],
-        temFolga: item.tem_folga || false, educadoresFolga: item.educadores_folga || '',
-        temFerias: item.tem_ferias || false, educadoresFerias: item.educadores_ferias || '',
-        temApoioSemiliberdade: item.tem_apoio_semiliberdade || false, educadoresApoioSemiliberdade: item.educadores_apoio_semiliberdade || '',
-        tonfas: item.tonfas, algemas: item.algemas, chavesAcesso: item.chaves_acesso, chavesAlgemas: item.chaves_algemas, escudos: item.escudos, lanternas: item.lanternas, celular: item.celular, radioCelular: item.radio_celular, radioHT: item.radio_ht, cadeados: item.cadeados, pendrives: item.pendrives,
-        historicoEdicoes: item.historico_edicoes || []
-      })));
-    }
-  };
-
   const handleDeleteReport = async (id: number) => {
     if (session?.user?.email !== ADMIN_EMAIL) return alert("Apenas admin pode excluir.");
     const senhaDigitada = prompt("Para excluir este relatório, digite a senha de administrador:");
@@ -278,7 +313,7 @@ export default function Home() {
       tonfas: formData.tonfas, algemas: formData.algemas, chaves_acesso: formData.chavesAcesso, chaves_algemas: formData.chavesAlgemas, escudos: formData.escudos, lanternas: formData.lanternas, celular: formData.celular, radio_celular: formData.radioCelular, radio_ht: formData.radioHT, cadeados: formData.cadeados, pendrives: formData.pendrives,
       alojamentos: formData.alojamentos, resumo_plantao: formData.resumoPlantao, plantao_diurno: formData.assinaturaDiurno, plantao_noturno: formData.assinaturaNoturno,
       assinatura_diurno_img: formData.assinaturaDiurnoImg, assinatura_noturno_img: formData.assinaturaNoturnoImg, fotos: formData.fotos,
-      tem_saida: formData.temSaida, saida_adolescente: formData.saidaAdolescente, saida_educador: formData.saidaEducador, saida_horario: formData.saidaHorario,
+      tem_saida: formData.temSaida, saidas: formData.saidas, // ADICIONADO PARA SALVAR O ARRAY DE SAIDAS
       tem_admissao: formData.temAdmissao, admissoes: formData.admissoes,
       tem_desligamento: formData.temDesligamento, desligamentos: formData.desligamentos,
       tem_folga: formData.temFolga, educadores_folga: formData.educadoresFolga, tem_ferias: formData.temFerias, educadores_ferias: formData.educadoresFerias,
@@ -295,7 +330,7 @@ export default function Home() {
     const { error } = await salvarNoSupabase();
     setLoading(false);
     if (error) alert("Erro ao salvar: " + error.message);
-    else alert(formData.id ? "✅ Relatório ATUALIZADO com sucesso!" : "✅ Relatório SALVO com sucesso!");
+    else { alert(formData.id ? "✅ Relatório ATUALIZADO com sucesso!" : "✅ Relatório SALVO com sucesso!"); fetchHistory(); }
   };
 
   const handleSaveAndSend = async () => {
@@ -303,6 +338,7 @@ export default function Home() {
     const { error } = await salvarNoSupabase();
     setLoading(false);
     if (error) return alert("Erro ao salvar: " + error.message);
+    fetchHistory();
     const texto = gerarTextoWhatsApp(formData);
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`, '_blank');
   };
@@ -317,21 +353,8 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans pb-12 selection:bg-blue-200">
       
-      {showInactivityWarning && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center px-4 animate-fade-in-up">
-            <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center border-t-4 border-red-500">
-                <div className="text-6xl mb-4 animate-bounce">⏳</div>
-                <h3 className="text-2xl font-black text-gray-800 mb-2">Sessão Expirando!</h3>
-                <p className="text-gray-500 mb-8">Você será desconectado em 30 segundos por inatividade de segurança.</p>
-                <button onClick={() => setShowInactivityWarning(false)} className="bg-gradient-to-r from-blue-600 to-blue-800 text-white font-bold py-3 px-6 rounded-xl w-full hover:shadow-lg hover:-translate-y-1 transition-all active:translate-y-0">
-                  Continuar Logado
-                </button>
-            </div>
-        </div>
-      )}
-
-      {/* HEADER BAR (Glassmorphism) */}
-      <div className="glass-panel sticky top-0 z-40 px-6 py-4 flex flex-wrap justify-between items-center gap-4 transition-all">
+      {/* HEADER BAR */}
+      <div className="glass-panel sticky top-0 z-40 px-6 py-4 flex flex-wrap justify-between items-center gap-4 transition-all border-b border-gray-200 bg-white/80 backdrop-blur-md">
         <div className="flex items-center gap-3 overflow-hidden group cursor-pointer" onClick={() => setView('select-plantao')}>
             <span className="text-2xl group-hover:scale-110 transition-transform bg-blue-100 p-2 rounded-xl">🛡️</span>
             <h1 className="font-black text-gray-800 text-lg sm:text-xl tracking-tight">CSIPRC Segurança</h1>
@@ -349,13 +372,13 @@ export default function Home() {
               </div>
             )}
             
-            {(view === 'form' || view === 'select-plantao') && (
+            {['form', 'select-plantao', 'manage-team'].includes(view) && (
                 <button onClick={() => { fetchHistory(); setView('history'); setSelectedReport(null); }} className="bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-xl hover:bg-gray-50 hover:shadow-md transition-all flex items-center gap-2 font-bold text-sm">
                   📜 <span className="hidden sm:inline">Histórico</span>
                 </button>
             )}
 
-            {(view === 'history' || view === 'admin') && (
+            {(view === 'history' || view === 'admin' || view === 'manage-team') && (
                 <button onClick={() => setView('select-plantao')} className="bg-gray-800 text-white px-4 py-2 rounded-xl hover:bg-gray-700 hover:shadow-md transition-all flex items-center gap-2 font-bold text-sm">
                   ⬅ Voltar
                 </button>
@@ -388,22 +411,71 @@ export default function Home() {
               />
           )}
 
-          {/* --- NOVA TELA DE SELEÇÃO DE PLANTÃO (MODERNA) --- */}
+          {view === 'manage-team' && (
+            <div className="p-8 md:p-12 animate-fade-in-up">
+                <div className="mb-8">
+                    <h2 className="text-3xl font-black text-gray-800 flex items-center gap-3">
+                        <span className="text-4xl bg-purple-100 text-purple-600 p-3 rounded-2xl">👥</span> 
+                        Gerenciar Equipes Padrão
+                    </h2>
+                    <p className="text-gray-500 mt-2">Atualize aqui quem está na equipe de cada plantão.</p>
+                </div>
+
+                <div className="flex flex-col md:flex-row gap-4 mb-8">
+                    <button onClick={() => setEditandoEquipe('ALFA')} className={`flex-1 py-4 px-6 rounded-2xl font-black text-lg transition-all flex justify-center items-center gap-2 ${editandoEquipe === 'ALFA' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 -translate-y-1' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                        ☀️ Equipe ALFA
+                    </button>
+                    <button onClick={() => setEditandoEquipe('BETA')} className={`flex-1 py-4 px-6 rounded-2xl font-black text-lg transition-all flex justify-center items-center gap-2 ${editandoEquipe === 'BETA' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/30 -translate-y-1' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                        🌿 Equipe BETA
+                    </button>
+                </div>
+
+                <div className="bg-gray-50 p-6 md:p-8 rounded-3xl border border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {[
+                        { label: 'Supervisor(a)', name: 'supervisor' },
+                        { label: 'Educadores', name: 'educadores' },
+                        { label: 'Portaria', name: 'portaria' },
+                        { label: 'Equipe Cozinha', name: 'cozinha' },
+                        { label: 'Serviços Gerais', name: 'servicosGerais' }
+                    ].map(campo => (
+                        <div key={campo.name} className={campo.name === 'educadores' ? 'md:col-span-2' : ''}>
+                            <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">{campo.label}</label>
+                            <input 
+                                type="text" 
+                                value={equipes[editandoEquipe][campo.name]} 
+                                onChange={(e) => setEquipes((prev: any) => ({...prev, [editandoEquipe]: {...prev[editandoEquipe], [campo.name]: e.target.value}}))}
+                                className="w-full bg-white border border-gray-200 p-4 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 text-gray-800 font-medium shadow-sm transition-all"
+                                placeholder={`Nome(s) para ${campo.label.toLowerCase()}`}
+                            />
+                        </div>
+                    ))}
+                </div>
+
+                <div className="mt-8 flex gap-4 flex-col sm:flex-row">
+                    <button onClick={() => setView('select-plantao')} className="flex-1 bg-white border border-gray-200 text-gray-700 font-bold py-4 rounded-2xl hover:bg-gray-50 transition-all">Cancelar</button>
+                    <button onClick={handleSalvarEquipes} className="flex-1 bg-purple-600 text-white font-bold py-4 rounded-2xl hover:bg-purple-700 shadow-xl shadow-purple-500/30 transition-all text-lg">💾 Salvar Atualizações</button>
+                </div>
+            </div>
+          )}
+
           {view === 'select-plantao' && (
               <div className="flex flex-col items-center justify-center min-h-[75vh] px-6 py-12 animate-fade-in-up">
                   <div className="inline-block bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-sm font-bold tracking-wide mb-6">
                     MÓDULO DE REGISTRO
                   </div>
                   <h2 className="text-4xl md:text-5xl font-black text-gray-800 mb-4 text-center tracking-tight">Qual o Plantão de Hoje?</h2>
-                  <p className="text-gray-500 mb-12 text-center text-lg max-w-xl">
+                  <p className="text-gray-500 mb-8 text-center text-lg max-w-xl">
                     Selecione o plantão abaixo para carregar as informações predefinidas e economizar tempo na digitação.
                   </p>
                   
+                  <div className="mb-12">
+                      <button onClick={() => setView('manage-team')} className="flex items-center gap-2 bg-purple-100 text-purple-700 hover:bg-purple-200 hover:scale-105 transition-all font-bold py-3 px-6 rounded-xl shadow-sm border border-purple-200">
+                          <span className="text-xl">👥</span> Editar Nomes Padrão das Equipes
+                      </button>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-3xl">
-                      <button 
-                          onClick={() => { setFormData(getTemplateAlfa()); setView('form'); window.scrollTo(0,0); }} 
-                          className="relative bg-gradient-to-br from-blue-500 to-blue-700 text-white p-10 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-blue-500/30 hover:-translate-y-2 transition-all duration-300 group overflow-hidden"
-                      >
+                      <button onClick={() => handleSelectPlantao('ALFA')} className="relative bg-gradient-to-br from-blue-500 to-blue-700 text-white p-10 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-blue-500/30 hover:-translate-y-2 transition-all duration-300 group overflow-hidden">
                           <div className="absolute -top-10 -right-10 w-40 h-40 bg-white opacity-10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
                           <div className="flex flex-col items-center gap-3 relative z-10">
                             <span className="text-6xl group-hover:scale-110 transition-transform duration-300 drop-shadow-md">☀️</span>
@@ -412,10 +484,7 @@ export default function Home() {
                           </div>
                       </button>
                       
-                      <button 
-                          onClick={() => { setFormData(getTemplateBeta()); setView('form'); window.scrollTo(0,0); }} 
-                          className="relative bg-gradient-to-br from-emerald-500 to-teal-700 text-white p-10 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-emerald-500/30 hover:-translate-y-2 transition-all duration-300 group overflow-hidden"
-                      >
+                      <button onClick={() => handleSelectPlantao('BETA')} className="relative bg-gradient-to-br from-emerald-500 to-teal-700 text-white p-10 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-emerald-500/30 hover:-translate-y-2 transition-all duration-300 group overflow-hidden">
                           <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white opacity-10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
                           <div className="flex flex-col items-center gap-3 relative z-10">
                             <span className="text-6xl group-hover:scale-110 transition-transform duration-300 drop-shadow-md">🌿</span>
@@ -431,7 +500,6 @@ export default function Home() {
               </div>
           )}
 
-          {/* --- FORMULÁRIO PRINCIPAL --- */}
           {view === 'form' && (
               <form className="p-6 md:p-10 space-y-10 animate-fade-in-up" onSubmit={(e) => e.preventDefault()}>
               
@@ -519,7 +587,6 @@ export default function Home() {
                   </div>
               </div>
               
-              {/* Barra de Ações Final (Sticky Bottom effect) */}
               <div className="mt-12 p-6 bg-white rounded-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.05)] border border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex gap-4">
                       <button type="button" onClick={() => gerarWord(formData)} className="flex-1 bg-blue-50 text-blue-700 font-bold py-4 rounded-2xl hover:bg-blue-100 hover:-translate-y-1 transition-all border border-blue-100 flex items-center justify-center gap-2">

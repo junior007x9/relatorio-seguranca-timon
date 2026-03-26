@@ -19,6 +19,13 @@ export type DesligamentoItem = {
     horario: string;
 };
 
+// NOVO: Tipo para Múltiplas Saídas
+export type SaidaItem = {
+    adolescente: string;
+    educador: string;
+    horario: string;
+};
+
 export type RelatorioData = {
   id?: number; 
   created_at?: string; 
@@ -37,7 +44,11 @@ export type RelatorioData = {
   assinaturaNoturnoImg: string;
   fotos: string[];
   
-  temSaida: boolean; saidaAdolescente: string; saidaEducador: string; saidaHorario: string;
+  temSaida: boolean; 
+  saidas: SaidaItem[]; // Substituiu os campos individuais de saída
+  saidaAdolescente: string; // Mantido por retrocompatibilidade temporária
+  saidaEducador: string;    // Mantido por retrocompatibilidade temporária
+  saidaHorario: string;     // Mantido por retrocompatibilidade temporária
   
   temAdmissao: boolean;
   admissoes: AdmissaoItem[]; 

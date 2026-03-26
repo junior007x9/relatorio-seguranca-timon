@@ -13,7 +13,7 @@ export default function OcorrenciasSection({ formData, onChange, gerenciarArray 
   return (
     <div className="space-y-6 mt-8">
       
-      {/* CARD: SAÍDA EXTERNA */}
+      {/* CARD: SAÍDA EXTERNA (AGORA DINÂMICO E MÚLTIPLO) */}
       <section className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm transition-all hover:shadow-md">
         <label className="flex items-center gap-3 cursor-pointer group">
           <input type="checkbox" name="temSaida" checked={formData.temSaida} onChange={onChange} className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" />
@@ -21,19 +21,27 @@ export default function OcorrenciasSection({ formData, onChange, gerenciarArray 
         </label>
         
         {formData.temSaida && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5 bg-blue-50/50 p-5 rounded-2xl border border-blue-100 animate-fade-in-up">
-            <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-500 uppercase">Adolescente</label>
-                <input type="text" name="saidaAdolescente" value={formData.saidaAdolescente} onChange={onChange} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-400" placeholder="Nome do adolescente" />
-            </div>
-            <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-500 uppercase">Educador</label>
-                <input type="text" name="saidaEducador" value={formData.saidaEducador} onChange={onChange} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-400" placeholder="Nome do educador" />
-            </div>
-            <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-500 uppercase">Horário</label>
-                <input type="time" name="saidaHorario" value={formData.saidaHorario} onChange={onChange} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
-            </div>
+          <div className="mt-5 space-y-4 animate-fade-in-up">
+            {formData.saidas?.map((saida: any, i: number) => (
+              <div key={i} className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-blue-50/50 p-5 rounded-2xl border border-blue-100 relative mt-2">
+                <button type="button" onClick={() => gerenciarArray('saidas', i, '', '', true)} className="absolute -top-3 -right-3 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white w-8 h-8 rounded-full flex items-center justify-center font-bold transition-all border border-red-200 hover:border-transparent shadow-sm">✕</button>
+                <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Adolescente</label>
+                    <input type="text" value={saida.adolescente || ''} onChange={(e) => gerenciarArray('saidas', i, 'adolescente', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-400" placeholder="Nome do adolescente" />
+                </div>
+                <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Educador</label>
+                    <input type="text" value={saida.educador || ''} onChange={(e) => gerenciarArray('saidas', i, 'educador', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-400" placeholder="Nome do educador" />
+                </div>
+                <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Horário</label>
+                    <input type="time" value={saida.horario || ''} onChange={(e) => gerenciarArray('saidas', i, 'horario', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
+                </div>
+              </div>
+            ))}
+            <button type="button" onClick={() => gerenciarArray('saidas', 0, '', '', false, true, { adolescente: '', educador: '', horario: '' })} className="text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors border border-blue-200 flex items-center gap-2 mt-4">
+              <span>➕</span> Adicionar Saída Externa
+            </button>
           </div>
         )}
       </section>
@@ -82,7 +90,7 @@ export default function OcorrenciasSection({ formData, onChange, gerenciarArray 
         )}
       </section>
 
-      {/* CARD: OUTRAS INFORMAÇÕES (Folgas, Férias, etc) */}
+      {/* CARD: OUTRAS INFORMAÇÕES */}
       <section className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-6 transition-all hover:shadow-md">
         <div className="space-y-3">
           <label className="flex items-center gap-2 cursor-pointer group">
