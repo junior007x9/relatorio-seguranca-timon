@@ -27,7 +27,6 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // --- CONFIGURAÇÕES GERAIS ---
-// Definindo o seu e-mail como ADMIN mestre com acesso total
 const ADMIN_EMAIL = 'santos.junior12@hotmail.com'; 
 const TEMPO_INATIVIDADE = 5 * 60 * 1000; 
 const TEMPO_AVISO = 4.5 * 60 * 1000;
@@ -117,15 +116,31 @@ export default function Home() {
     if (session && userName) fetchHistory();
   }, [session, userName, fetchHistory]);
 
+  // CORREÇÃO: Efeito aprimorado para forçar a leitura do Cache do navegador (LocalStorage)
   useEffect(() => {
-    const equipesSalvas = localStorage.getItem('equipes_cadastradas');
-    if (equipesSalvas) setEquipes(JSON.parse(equipesSalvas));
-  }, []);
+    try {
+        const equipesSalvas = localStorage.getItem('equipes_cadastradas');
+        if (equipesSalvas) {
+            const parsedEquipes = JSON.parse(equipesSalvas);
+            if (parsedEquipes && parsedEquipes.ALFA && parsedEquipes.BETA) {
+                setEquipes(parsedEquipes);
+            }
+        }
+    } catch (error) {
+        console.error("Erro ao carregar as equipes salvas:", error);
+    }
+  }, []); // Executa sempre que a página é atualizada (F5)
 
+  // CORREÇÃO: Função aprimorada para salvar as equipes
   const handleSalvarEquipes = () => {
-      localStorage.setItem('equipes_cadastradas', JSON.stringify(equipes));
-      alert('✅ Equipes atualizadas com sucesso!');
-      setView('select-plantao');
+      try {
+          localStorage.setItem('equipes_cadastradas', JSON.stringify(equipes));
+          alert('✅ Equipes atualizadas e salvas com sucesso neste dispositivo!');
+          setView('select-plantao');
+          window.scrollTo(0,0);
+      } catch (error) {
+          alert('❌ Ocorreu um erro ao salvar as equipes no cache do seu navegador.');
+      }
   };
 
   const handleSelectPlantao = (tipo: 'ALFA' | 'BETA') => {
@@ -378,7 +393,6 @@ export default function Home() {
   if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] font-bold text-gray-900">Carregando...</div>;
   if (!session) return <LoginForm onLogin={handleLogin} loading={loading} />;
 
-  // VALIDAÇÃO DE ADMIN RÍGIDA
   const isUserAdmin = session?.user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
   const totalAtual = calcularTotalAdolescentes(formData);
 
@@ -417,7 +431,6 @@ export default function Home() {
                   </button>
               )}
               
-              {/* BOTÃO ADMIN - SÓ APARECE SE FOR O EMAIL DO ADMIN */}
               {isUserAdmin && view !== 'admin' && (
                   <button onClick={() => setView('admin')} className="bg-purple-100 text-purple-700 px-4 py-2 rounded-xl hover:bg-purple-200 hover:scale-105 transition-all flex items-center gap-2 font-bold text-sm">
                     ⚙️ <span className="hidden sm:inline">Admin</span>
@@ -435,7 +448,6 @@ export default function Home() {
       <div className="max-w-5xl mx-auto mt-8 px-4 sm:px-0">
         <div className="bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-3xl overflow-hidden border border-gray-100 min-h-[80vh]">
           
-          {/* TELA DE PRIMEIRO ACESSO - OBRIGA A ESCOLHER NOME */}
           {view === 'set-name' && (
             <div className="flex flex-col items-center justify-center min-h-[75vh] px-6 py-12 animate-fade-in-up">
               <div className="text-6xl mb-6">👋</div>
@@ -464,7 +476,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* SÓ RENDERIZA O PAINEL DE ADMIN SE A VARIÁVEL ISUSERADMIN FOR TRUE */}
           {view === 'admin' && userName && isUserAdmin && <AdminPanel onRegister={handleRegisterUser} loading={loading} />}
 
           {view === 'history' && userName && (
@@ -476,7 +487,6 @@ export default function Home() {
               />
           )}
 
-          {/* SÓ RENDERIZA O PAINEL DE EQUIPES SE A VARIÁVEL ISUSERADMIN FOR TRUE */}
           {view === 'manage-team' && userName && isUserAdmin && (
             <div className="p-8 md:p-12 animate-fade-in-up">
                 <div className="mb-8">
@@ -484,7 +494,10 @@ export default function Home() {
                         <span className="text-4xl bg-purple-100 text-purple-600 p-3 rounded-2xl">👥</span> 
                         Gerenciar Equipes Padrão
                     </h2>
-                    <p className="text-gray-500 mt-2">Atualize aqui quem está na equipe de cada plantão.</p>
+                    <p className="text-gray-500 mt-2 text-sm md:text-base">
+                       Atualize aqui quem está na equipe de cada plantão. <br/>
+                       <span className="text-amber-600 font-bold bg-amber-50 px-2 py-1 rounded">⚠️ Atenção:</span> Por segurança e por não sobrecarregar o banco de dados, essas alterações ficam salvas na memória local deste dispositivo. Se você for usar outro computador/celular, precisará atualizar lá também.
+                    </p>
                 </div>
 
                 <div className="flex flex-col md:flex-row gap-4 mb-8">
@@ -534,7 +547,6 @@ export default function Home() {
                     Selecione o plantão abaixo para carregar as informações predefinidas e economizar tempo na digitação.
                   </p>
                   
-                  {/* ESCONDE O BOTÃO DE GERENCIAR EQUIPES DE QUEM NÃO FOR ADMIN */}
                   {isUserAdmin && (
                     <div className="mb-12">
                         <button onClick={() => setView('manage-team')} className="flex items-center gap-2 bg-purple-100 text-purple-700 hover:bg-purple-200 hover:scale-105 transition-all font-bold py-3 px-6 rounded-xl shadow-sm border border-purple-200">
