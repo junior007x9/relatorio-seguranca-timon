@@ -116,7 +116,7 @@ export default function Home() {
     if (session && userName) fetchHistory();
   }, [session, userName, fetchHistory]);
 
-  // CORREÇÃO: Efeito aprimorado para forçar a leitura do Cache do navegador (LocalStorage)
+  // Efeito para carregar as equipas salvas no Cache (LocalStorage)
   useEffect(() => {
     try {
         const equipesSalvas = localStorage.getItem('equipes_cadastradas');
@@ -129,9 +129,8 @@ export default function Home() {
     } catch (error) {
         console.error("Erro ao carregar as equipes salvas:", error);
     }
-  }, []); // Executa sempre que a página é atualizada (F5)
+  }, []); 
 
-  // CORREÇÃO: Função aprimorada para salvar as equipes
   const handleSalvarEquipes = () => {
       try {
           localStorage.setItem('equipes_cadastradas', JSON.stringify(equipes));
@@ -330,23 +329,34 @@ export default function Home() {
     setIsRecording(true);
   };
 
+  // Função de exclusão atualizada - apaga diretamente pelo Supabase sem pedir palavra-passe
   const handleDeleteReport = async (id: number) => {
-    if (session?.user?.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return alert("Apenas admin pode excluir.");
-    const senhaDigitada = prompt("Para excluir este relatório, digite a senha de administrador:");
-    if (!senhaDigitada) return;
+    if (session?.user?.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+        return alert("Apenas o administrador pode excluir relatórios.");
+    }
+
+    const confirmacao = confirm("⚠️ ATENÇÃO: Tem certeza absoluta que deseja EXCLUIR DEFINITIVAMENTE este relatório? Esta ação não pode ser desfeita.");
+    if (!confirmacao) return;
 
     setLoading(true);
     try {
-      const resposta = await fetch('/api/relatorios', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, senha: senhaDigitada })
-      });
-      const dados = await resposta.json();
-      if (!resposta.ok) alert("Erro: " + dados.error);
-      else { alert("🗑️ " + dados.message); setSelectedReport(null); fetchHistory(); }
-    } catch (err) { alert("Erro de conexão ao tentar excluir o relatório."); } 
-    finally { setLoading(false); }
+      const { error } = await supabase
+        .from('relatorios')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        alert("Erro no banco de dados ao excluir: " + error.message);
+      } else {
+        alert("🗑️ Relatório excluído com sucesso!");
+        setSelectedReport(null); 
+        fetchHistory(); 
+      }
+    } catch (err) { 
+      alert("Erro inesperado ao tentar excluir o relatório. Verifique a sua internet."); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const salvarNoSupabase = async () => {
@@ -390,7 +400,7 @@ export default function Home() {
   };
 
   // --- Renderização ---
-  if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] font-bold text-gray-900">Carregando...</div>;
+  if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] font-bold text-gray-900">A carregar...</div>;
   if (!session) return <LoginForm onLogin={handleLogin} loading={loading} />;
 
   const isUserAdmin = session?.user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
@@ -448,12 +458,13 @@ export default function Home() {
       <div className="max-w-5xl mx-auto mt-8 px-4 sm:px-0">
         <div className="bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-3xl overflow-hidden border border-gray-100 min-h-[80vh]">
           
+          {/* TELA DE PRIMEIRO ACESSO */}
           {view === 'set-name' && (
             <div className="flex flex-col items-center justify-center min-h-[75vh] px-6 py-12 animate-fade-in-up">
               <div className="text-6xl mb-6">👋</div>
               <h2 className="text-3xl md:text-4xl font-black text-gray-800 mb-2 text-center">Bem-vindo(a) ao Sistema!</h2>
               <p className="text-gray-500 mb-8 text-center text-lg max-w-md">
-                Como este é o seu primeiro acesso, por favor, nos diga qual o seu nome para exibição no aplicativo.
+                Como este é o seu primeiro acesso, por favor, indique-nos o seu nome para exibição na aplicação.
               </p>
               
               <div className="w-full max-w-md space-y-4">
@@ -461,7 +472,7 @@ export default function Home() {
                   type="text" 
                   value={nameInput} 
                   onChange={(e) => setNameInput(e.target.value)} 
-                  placeholder="Seu nome completo ou de guerra..." 
+                  placeholder="Seu nome completo ou nome de guerra..." 
                   className="w-full bg-gray-50 border border-gray-200 p-4 rounded-2xl text-lg font-bold text-gray-800 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all text-center"
                   onKeyDown={(e) => { if(e.key === 'Enter') handleSaveName(); }}
                 />
@@ -470,7 +481,7 @@ export default function Home() {
                   disabled={loading}
                   className="w-full bg-blue-600 text-white font-black text-lg py-4 rounded-2xl shadow-lg shadow-blue-500/30 hover:-translate-y-1 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {loading ? 'Salvando...' : 'Salvar e Entrar 🚀'}
+                  {loading ? 'A guardar...' : 'Guardar e Entrar 🚀'}
                 </button>
               </div>
             </div>
@@ -492,20 +503,20 @@ export default function Home() {
                 <div className="mb-8">
                     <h2 className="text-3xl font-black text-gray-800 flex items-center gap-3">
                         <span className="text-4xl bg-purple-100 text-purple-600 p-3 rounded-2xl">👥</span> 
-                        Gerenciar Equipes Padrão
+                        Gerir Equipas Padrão
                     </h2>
                     <p className="text-gray-500 mt-2 text-sm md:text-base">
-                       Atualize aqui quem está na equipe de cada plantão. <br/>
-                       <span className="text-amber-600 font-bold bg-amber-50 px-2 py-1 rounded">⚠️ Atenção:</span> Por segurança e por não sobrecarregar o banco de dados, essas alterações ficam salvas na memória local deste dispositivo. Se você for usar outro computador/celular, precisará atualizar lá também.
+                       Atualize aqui quem está na equipa de cada plantão. <br/>
+                       <span className="text-amber-600 font-bold bg-amber-50 px-2 py-1 rounded">⚠️ Atenção:</span> Por segurança e para não sobrecarregar a base de dados, estas alterações ficam guardadas na memória local deste dispositivo. Se usar outro computador/telemóvel, precisará de as atualizar lá também.
                     </p>
                 </div>
 
                 <div className="flex flex-col md:flex-row gap-4 mb-8">
                     <button onClick={() => setEditandoEquipe('ALFA')} className={`flex-1 py-4 px-6 rounded-2xl font-black text-lg transition-all flex justify-center items-center gap-2 ${editandoEquipe === 'ALFA' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 -translate-y-1' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                        ☀️ Equipe ALFA
+                        ☀️ Equipa ALFA
                     </button>
                     <button onClick={() => setEditandoEquipe('BETA')} className={`flex-1 py-4 px-6 rounded-2xl font-black text-lg transition-all flex justify-center items-center gap-2 ${editandoEquipe === 'BETA' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/30 -translate-y-1' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                        🌿 Equipe BETA
+                        🌿 Equipa BETA
                     </button>
                 </div>
 
@@ -514,7 +525,7 @@ export default function Home() {
                         { label: 'Supervisor(a)', name: 'supervisor' },
                         { label: 'Educadores', name: 'educadores' },
                         { label: 'Portaria', name: 'portaria' },
-                        { label: 'Equipe Cozinha', name: 'cozinha' },
+                        { label: 'Equipa Cozinha', name: 'cozinha' },
                         { label: 'Serviços Gerais', name: 'servicosGerais' }
                     ].map(campo => (
                         <div key={campo.name} className={campo.name === 'educadores' ? 'md:col-span-2' : ''}>
@@ -532,7 +543,7 @@ export default function Home() {
 
                 <div className="mt-8 flex gap-4 flex-col sm:flex-row">
                     <button onClick={() => setView('select-plantao')} className="flex-1 bg-white border border-gray-200 text-gray-700 font-bold py-4 rounded-2xl hover:bg-gray-50 transition-all">Cancelar</button>
-                    <button onClick={handleSalvarEquipes} className="flex-1 bg-purple-600 text-white font-bold py-4 rounded-2xl hover:bg-purple-700 shadow-xl shadow-purple-500/30 transition-all text-lg">💾 Salvar Atualizações</button>
+                    <button onClick={handleSalvarEquipes} className="flex-1 bg-purple-600 text-white font-bold py-4 rounded-2xl hover:bg-purple-700 shadow-xl shadow-purple-500/30 transition-all text-lg">💾 Guardar Atualizações</button>
                 </div>
             </div>
           )}
@@ -540,17 +551,17 @@ export default function Home() {
           {view === 'select-plantao' && userName && (
               <div className="flex flex-col items-center justify-center min-h-[75vh] px-6 py-12 animate-fade-in-up">
                   <div className="inline-block bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-sm font-bold tracking-wide mb-6">
-                    MÓDULO DE REGISTRO
+                    MÓDULO DE REGISTO
                   </div>
                   <h2 className="text-4xl md:text-5xl font-black text-gray-800 mb-4 text-center tracking-tight">Qual o Plantão de Hoje?</h2>
                   <p className="text-gray-500 mb-8 text-center text-lg max-w-xl">
-                    Selecione o plantão abaixo para carregar as informações predefinidas e economizar tempo na digitação.
+                    Selecione o plantão abaixo para carregar as informações predefinidas e poupar tempo na digitação.
                   </p>
                   
                   {isUserAdmin && (
                     <div className="mb-12">
                         <button onClick={() => setView('manage-team')} className="flex items-center gap-2 bg-purple-100 text-purple-700 hover:bg-purple-200 hover:scale-105 transition-all font-bold py-3 px-6 rounded-xl shadow-sm border border-purple-200">
-                            <span className="text-xl">👥</span> Editar Nomes Padrão das Equipes
+                            <span className="text-xl">👥</span> Editar Nomes Padrão das Equipas
                         </button>
                     </div>
                   )}
@@ -624,7 +635,7 @@ export default function Home() {
                         Resumo do Plantão
                       </h3>
                       <button type="button" onClick={toggleRecording} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all shadow-sm ${isRecording ? 'bg-red-500 text-white animate-pulse shadow-red-500/40' : 'bg-white text-blue-700 hover:bg-blue-100 border border-blue-200'}`}>
-                          {isRecording ? <><span>⏹️</span> Gravando...</> : <><span>🎙️</span> Ditar por Voz</>}
+                          {isRecording ? <><span>⏹️</span> A gravar...</> : <><span>🎙️</span> Ditar por Voz</>}
                       </button>
                   </div>
                   <textarea name="resumoPlantao" value={formData.resumoPlantao} placeholder="Fale ou digite aqui os detalhes principais e observações gerais do plantão..." onChange={handleChange} className="w-full bg-white border border-gray-200 p-5 rounded-2xl h-48 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-400 transition-all text-gray-800 text-lg shadow-inner resize-none"></textarea>
@@ -679,10 +690,10 @@ export default function Home() {
                   </div>
                   <div className="flex gap-4">
                       <button type="button" onClick={handleSalvarApenas} className={`flex-1 flex items-center justify-center gap-2 ${formData.id ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/30' : 'bg-gray-800 hover:bg-gray-900 shadow-gray-900/30'} text-white font-bold py-4 rounded-2xl shadow-xl hover:-translate-y-1 transition-all`}>
-                          <span className="text-xl">💾</span> {formData.id ? 'Salvar Edição' : 'Apenas Salvar'}
+                          <span className="text-xl">💾</span> {formData.id ? 'Guardar Edição' : 'Apenas Guardar'}
                       </button>
                       <button type="button" onClick={handleSaveAndSend} className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-4 rounded-2xl shadow-xl shadow-green-500/30 hover:shadow-green-500/50 hover:-translate-y-1 transition-all flex items-center justify-center gap-2">
-                          <span className="text-xl">📱</span> Zap + Salvar
+                          <span className="text-xl">📱</span> Zap + Guardar
                       </button>
                   </div>
               </div>
