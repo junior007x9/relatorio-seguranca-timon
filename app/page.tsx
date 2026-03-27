@@ -27,7 +27,8 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // --- CONFIGURAÇÕES GERAIS ---
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'admin@csiprc.com'; 
+// Definindo o seu e-mail como ADMIN mestre com acesso total
+const ADMIN_EMAIL = 'santos.junior12@hotmail.com'; 
 const TEMPO_INATIVIDADE = 5 * 60 * 1000; 
 const TEMPO_AVISO = 4.5 * 60 * 1000;
 
@@ -60,7 +61,6 @@ const getTemplateVazio = (): RelatorioData => ({
     cozinha: '', servicosGerais: '', portaria: '', educadores: '', supervisor: '', plantao: ''
 });
 
-// Equipes padrão iniciais (caso não haja nada salvo)
 const defaultEquipes = {
     ALFA: { supervisor: 'Rosem', educadores: 'Júnior, Wellington, Gleidson, Anderson, Francilio, Elizandria, Diego', portaria: 'Paulo', cozinha: 'Liliane', servicosGerais: 'Ana' },
     BETA: { supervisor: 'Jailson', educadores: 'Wilson/Maria José/Marcos Paulo/marciana/wrobison/Orlando', portaria: 'Paulo', cozinha: 'IVA', servicosGerais: 'Francisca' }
@@ -71,7 +71,10 @@ export default function Home() {
   const [authLoading, setAuthLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   
-  const [view, setView] = useState<'select-plantao' | 'form' | 'history' | 'admin' | 'manage-team'>('select-plantao');
+  const [view, setView] = useState<'select-plantao' | 'form' | 'history' | 'admin' | 'manage-team' | 'set-name'>('select-plantao');
+  const [userName, setUserName] = useState<string>(''); 
+  const [nameInput, setNameInput] = useState<string>(''); 
+  
   const [historico, setHistorico] = useState<RelatorioData[]>([]);
   const [selectedReport, setSelectedReport] = useState<RelatorioData | null>(null);
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
@@ -86,8 +89,6 @@ export default function Home() {
   const recognitionRef = useRef<any>(null);
   const baseTextRef = useRef<string>(''); 
 
-  // --- Base de Dados (Supabase) ---
-  // Movido para cima para ser acessível nos UseEffects
   const fetchHistory = useCallback(async () => {
     setLoading(true);
     const { data } = await supabase.from('relatorios').select('*').order('created_at', { ascending: false });
@@ -112,10 +113,9 @@ export default function Home() {
     }
   }, []);
 
-  // Carregar histórico em Background assim que houver sessão logada
   useEffect(() => {
-    if (session) fetchHistory();
-  }, [session, fetchHistory]);
+    if (session && userName) fetchHistory();
+  }, [session, userName, fetchHistory]);
 
   useEffect(() => {
     const equipesSalvas = localStorage.getItem('equipes_cadastradas');
@@ -131,8 +131,6 @@ export default function Home() {
   const handleSelectPlantao = (tipo: 'ALFA' | 'BETA') => {
       const base = getBaseData();
       const equipe = equipes[tipo];
-      
-      // Busca o ÚLTIMO plantão salvo no banco (o index 0 do histórico é o mais recente por causa do order descending)
       const ultimo = historico.length > 0 ? historico[0] : null;
       
       setFormData({
@@ -143,8 +141,6 @@ export default function Home() {
           portaria: equipe.portaria || '',
           cozinha: equipe.cozinha || '',
           servicosGerais: equipe.servicosGerais || '',
-          
-          // --- HERANÇA INTELIGENTE DE MATERIAIS E ALOJAMENTOS ---
           tonfas: ultimo?.tonfas || base.tonfas,
           algemas: ultimo?.algemas || base.algemas,
           chavesAcesso: ultimo?.chavesAcesso || base.chavesAcesso,
@@ -166,7 +162,7 @@ export default function Home() {
     if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
     if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
     await supabase.auth.signOut();
-    setSession(null); setView('select-plantao'); setShowInactivityWarning(false);
+    setSession(null); setUserName(''); setView('select-plantao'); setShowInactivityWarning(false);
   }, []);
 
   const resetInactivityTimer = useCallback(() => {
@@ -190,13 +186,32 @@ export default function Home() {
   useEffect(() => {
     const checkSession = async () => {
         const { data, error } = await supabase.auth.getSession();
-        if (!error && data.session) setSession(data.session);
+        if (!error && data.session) {
+            setSession(data.session);
+            const nomeSalvo = data.session.user.user_metadata?.display_name;
+            if (nomeSalvo) {
+                setUserName(nomeSalvo);
+            } else {
+                setView('set-name'); 
+            }
+        }
         setAuthLoading(false);
     };
     checkSession();
+
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_OUT' || event === 'USER_DELETED') { setSession(null); setView('select-plantao'); } 
-        else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') setSession(session);
+        if (event === 'SIGNED_OUT' || event === 'USER_DELETED') { 
+            setSession(null); setUserName(''); setView('select-plantao'); 
+        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            setSession(session);
+            const nomeSalvo = session?.user?.user_metadata?.display_name;
+            if (nomeSalvo) {
+                setUserName(nomeSalvo);
+                if (view === 'set-name') setView('select-plantao');
+            } else {
+                setView('set-name');
+            }
+        }
     });
     return () => { authListener.subscription.unsubscribe(); };
   }, [handleLogout]);
@@ -213,6 +228,22 @@ export default function Home() {
     const { error } = await supabase.auth.signUp({ email, password: pass });
     setLoading(false);
     if (error) alert("Erro: " + error.message); else alert("Usuário criado!");
+  };
+
+  const handleSaveName = async () => {
+    if (!nameInput.trim()) return alert("Por favor, digite um nome válido.");
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({
+        data: { display_name: nameInput.trim() }
+    });
+    setLoading(false);
+    
+    if (error) {
+        alert("Erro ao salvar o nome: " + error.message);
+    } else {
+        setUserName(nameInput.trim());
+        setView('select-plantao');
+    }
   };
 
   const handleChange = (e: any) => {
@@ -285,7 +316,7 @@ export default function Home() {
   };
 
   const handleDeleteReport = async (id: number) => {
-    if (session?.user?.email !== ADMIN_EMAIL) return alert("Apenas admin pode excluir.");
+    if (session?.user?.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return alert("Apenas admin pode excluir.");
     const senhaDigitada = prompt("Para excluir este relatório, digite a senha de administrador:");
     if (!senhaDigitada) return;
 
@@ -305,7 +336,7 @@ export default function Home() {
 
   const salvarNoSupabase = async () => {
     const novoHistorico = [...(formData.historicoEdicoes || [])];
-    if (formData.id) novoHistorico.push({ usuario: session.user.email, dataHora: new Date().toLocaleString('pt-BR'), acao: 'Edição' });
+    if (formData.id) novoHistorico.push({ usuario: userName || session.user.email, dataHora: new Date().toLocaleString('pt-BR'), acao: 'Edição' });
 
     const payload = {
       data_plantao: formData.data, educadores: formData.educadores, supervisor: formData.supervisor, coordenador: formData.coordenador, apoio_geral: formData.apoio,
@@ -313,7 +344,7 @@ export default function Home() {
       tonfas: formData.tonfas, algemas: formData.algemas, chaves_acesso: formData.chavesAcesso, chaves_algemas: formData.chavesAlgemas, escudos: formData.escudos, lanternas: formData.lanternas, celular: formData.celular, radio_celular: formData.radioCelular, radio_ht: formData.radioHT, cadeados: formData.cadeados, pendrives: formData.pendrives,
       alojamentos: formData.alojamentos, resumo_plantao: formData.resumoPlantao, plantao_diurno: formData.assinaturaDiurno, plantao_noturno: formData.assinaturaNoturno,
       assinatura_diurno_img: formData.assinaturaDiurnoImg, assinatura_noturno_img: formData.assinaturaNoturnoImg, fotos: formData.fotos,
-      tem_saida: formData.temSaida, saidas: formData.saidas, // ADICIONADO PARA SALVAR O ARRAY DE SAIDAS
+      tem_saida: formData.temSaida, saidas: formData.saidas,
       tem_admissao: formData.temAdmissao, admissoes: formData.admissoes,
       tem_desligamento: formData.temDesligamento, desligamentos: formData.desligamentos,
       tem_folga: formData.temFolga, educadores_folga: formData.educadoresFolga, tem_ferias: formData.temFerias, educadores_ferias: formData.educadoresFerias,
@@ -347,7 +378,8 @@ export default function Home() {
   if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] font-bold text-gray-900">Carregando...</div>;
   if (!session) return <LoginForm onLogin={handleLogin} loading={loading} />;
 
-  const isUserAdmin = session.user.email === ADMIN_EMAIL;
+  // VALIDAÇÃO DE ADMIN RÍGIDA
+  const isUserAdmin = session?.user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
   const totalAtual = calcularTotalAdolescentes(formData);
 
   return (
@@ -355,54 +387,87 @@ export default function Home() {
       
       {/* HEADER BAR */}
       <div className="glass-panel sticky top-0 z-40 px-6 py-4 flex flex-wrap justify-between items-center gap-4 transition-all border-b border-gray-200 bg-white/80 backdrop-blur-md">
-        <div className="flex items-center gap-3 overflow-hidden group cursor-pointer" onClick={() => setView('select-plantao')}>
+        <div className="flex items-center gap-3 overflow-hidden group cursor-pointer" onClick={() => { if(userName) setView('select-plantao'); }}>
             <span className="text-2xl group-hover:scale-110 transition-transform bg-blue-100 p-2 rounded-xl">🛡️</span>
             <h1 className="font-black text-gray-800 text-lg sm:text-xl tracking-tight">CSIPRC Segurança</h1>
         </div>
         
-        <div className="flex items-center gap-3 flex-wrap justify-end flex-1">
-            {view === 'form' && (
-              <div className="flex gap-2 bg-gray-100/50 p-1.5 rounded-xl border border-gray-200">
-                <button onClick={() => gerarWord(formData)} className="bg-white text-blue-700 px-4 py-2 rounded-lg shadow-sm hover:shadow-md hover:scale-105 transition-all flex items-center gap-2 font-bold text-sm">
-                  <span className="text-lg">📄</span> <span className="hidden sm:inline">Word</span>
-                </button>
-                <button onClick={() => gerarPDF(formData)} className="bg-white text-red-600 px-4 py-2 rounded-lg shadow-sm hover:shadow-md hover:scale-105 transition-all flex items-center gap-2 font-bold text-sm">
-                  <span className="text-lg">📄</span> <span className="hidden sm:inline">PDF</span>
-                </button>
-              </div>
-            )}
-            
-            {['form', 'select-plantao', 'manage-team'].includes(view) && (
-                <button onClick={() => { fetchHistory(); setView('history'); setSelectedReport(null); }} className="bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-xl hover:bg-gray-50 hover:shadow-md transition-all flex items-center gap-2 font-bold text-sm">
-                  📜 <span className="hidden sm:inline">Histórico</span>
-                </button>
-            )}
+        {userName && (
+          <div className="flex items-center gap-3 flex-wrap justify-end flex-1">
+              {view === 'form' && (
+                <div className="flex gap-2 bg-gray-100/50 p-1.5 rounded-xl border border-gray-200">
+                  <button onClick={() => gerarWord(formData)} className="bg-white text-blue-700 px-4 py-2 rounded-lg shadow-sm hover:shadow-md hover:scale-105 transition-all flex items-center gap-2 font-bold text-sm">
+                    <span className="text-lg">📄</span> <span className="hidden sm:inline">Word</span>
+                  </button>
+                  <button onClick={() => gerarPDF(formData)} className="bg-white text-red-600 px-4 py-2 rounded-lg shadow-sm hover:shadow-md hover:scale-105 transition-all flex items-center gap-2 font-bold text-sm">
+                    <span className="text-lg">📄</span> <span className="hidden sm:inline">PDF</span>
+                  </button>
+                </div>
+              )}
+              
+              {['form', 'select-plantao', 'manage-team'].includes(view) && (
+                  <button onClick={() => { fetchHistory(); setView('history'); setSelectedReport(null); }} className="bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-xl hover:bg-gray-50 hover:shadow-md transition-all flex items-center gap-2 font-bold text-sm">
+                    📜 <span className="hidden sm:inline">Histórico</span>
+                  </button>
+              )}
 
-            {(view === 'history' || view === 'admin' || view === 'manage-team') && (
-                <button onClick={() => setView('select-plantao')} className="bg-gray-800 text-white px-4 py-2 rounded-xl hover:bg-gray-700 hover:shadow-md transition-all flex items-center gap-2 font-bold text-sm">
-                  ⬅ Voltar
-                </button>
-            )}
-            
-            {isUserAdmin && view !== 'admin' && (
-                <button onClick={() => setView('admin')} className="bg-purple-100 text-purple-700 px-4 py-2 rounded-xl hover:bg-purple-200 hover:scale-105 transition-all flex items-center gap-2 font-bold text-sm">
-                  ⚙️ <span className="hidden sm:inline">Admin</span>
-                </button>
-            )}
-            
-            <button onClick={handleLogout} className="bg-red-50 text-red-600 border border-red-100 px-4 py-2 rounded-xl font-bold hover:bg-red-600 hover:text-white transition-all duration-300 flex items-center gap-2 text-sm ml-2">
-              🚪 <span className="hidden sm:inline">Sair</span>
-            </button>
-        </div>
+              {(view === 'history' || view === 'admin' || view === 'manage-team') && (
+                  <button onClick={() => setView('select-plantao')} className="bg-gray-800 text-white px-4 py-2 rounded-xl hover:bg-gray-700 hover:shadow-md transition-all flex items-center gap-2 font-bold text-sm">
+                    ⬅ Voltar
+                  </button>
+              )}
+              
+              {/* BOTÃO ADMIN - SÓ APARECE SE FOR O EMAIL DO ADMIN */}
+              {isUserAdmin && view !== 'admin' && (
+                  <button onClick={() => setView('admin')} className="bg-purple-100 text-purple-700 px-4 py-2 rounded-xl hover:bg-purple-200 hover:scale-105 transition-all flex items-center gap-2 font-bold text-sm">
+                    ⚙️ <span className="hidden sm:inline">Admin</span>
+                  </button>
+              )}
+              
+              <button onClick={handleLogout} className="bg-red-50 text-red-600 border border-red-100 px-4 py-2 rounded-xl font-bold hover:bg-red-600 hover:text-white transition-all duration-300 flex items-center gap-2 text-sm ml-2">
+                🚪 <span className="hidden sm:inline">Sair</span>
+              </button>
+          </div>
+        )}
       </div>
 
       {/* ÁREA DE CONTEÚDO */}
       <div className="max-w-5xl mx-auto mt-8 px-4 sm:px-0">
         <div className="bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-3xl overflow-hidden border border-gray-100 min-h-[80vh]">
           
-          {view === 'admin' && <AdminPanel onRegister={handleRegisterUser} loading={loading} />}
+          {/* TELA DE PRIMEIRO ACESSO - OBRIGA A ESCOLHER NOME */}
+          {view === 'set-name' && (
+            <div className="flex flex-col items-center justify-center min-h-[75vh] px-6 py-12 animate-fade-in-up">
+              <div className="text-6xl mb-6">👋</div>
+              <h2 className="text-3xl md:text-4xl font-black text-gray-800 mb-2 text-center">Bem-vindo(a) ao Sistema!</h2>
+              <p className="text-gray-500 mb-8 text-center text-lg max-w-md">
+                Como este é o seu primeiro acesso, por favor, nos diga qual o seu nome para exibição no aplicativo.
+              </p>
+              
+              <div className="w-full max-w-md space-y-4">
+                <input 
+                  type="text" 
+                  value={nameInput} 
+                  onChange={(e) => setNameInput(e.target.value)} 
+                  placeholder="Seu nome completo ou de guerra..." 
+                  className="w-full bg-gray-50 border border-gray-200 p-4 rounded-2xl text-lg font-bold text-gray-800 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all text-center"
+                  onKeyDown={(e) => { if(e.key === 'Enter') handleSaveName(); }}
+                />
+                <button 
+                  onClick={handleSaveName}
+                  disabled={loading}
+                  className="w-full bg-blue-600 text-white font-black text-lg py-4 rounded-2xl shadow-lg shadow-blue-500/30 hover:-translate-y-1 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {loading ? 'Salvando...' : 'Salvar e Entrar 🚀'}
+                </button>
+              </div>
+            </div>
+          )}
 
-          {view === 'history' && (
+          {/* SÓ RENDERIZA O PAINEL DE ADMIN SE A VARIÁVEL ISUSERADMIN FOR TRUE */}
+          {view === 'admin' && userName && isUserAdmin && <AdminPanel onRegister={handleRegisterUser} loading={loading} />}
+
+          {view === 'history' && userName && (
               <HistoryView 
                   historico={historico} loading={loading} selectedReport={selectedReport}
                   onSelectReport={setSelectedReport} onEditReport={(r) => { setFormData(r); setSelectedReport(null); setView('form'); window.scrollTo(0,0); }}
@@ -411,7 +476,8 @@ export default function Home() {
               />
           )}
 
-          {view === 'manage-team' && (
+          {/* SÓ RENDERIZA O PAINEL DE EQUIPES SE A VARIÁVEL ISUSERADMIN FOR TRUE */}
+          {view === 'manage-team' && userName && isUserAdmin && (
             <div className="p-8 md:p-12 animate-fade-in-up">
                 <div className="mb-8">
                     <h2 className="text-3xl font-black text-gray-800 flex items-center gap-3">
@@ -458,7 +524,7 @@ export default function Home() {
             </div>
           )}
 
-          {view === 'select-plantao' && (
+          {view === 'select-plantao' && userName && (
               <div className="flex flex-col items-center justify-center min-h-[75vh] px-6 py-12 animate-fade-in-up">
                   <div className="inline-block bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-sm font-bold tracking-wide mb-6">
                     MÓDULO DE REGISTRO
@@ -468,11 +534,14 @@ export default function Home() {
                     Selecione o plantão abaixo para carregar as informações predefinidas e economizar tempo na digitação.
                   </p>
                   
-                  <div className="mb-12">
-                      <button onClick={() => setView('manage-team')} className="flex items-center gap-2 bg-purple-100 text-purple-700 hover:bg-purple-200 hover:scale-105 transition-all font-bold py-3 px-6 rounded-xl shadow-sm border border-purple-200">
-                          <span className="text-xl">👥</span> Editar Nomes Padrão das Equipes
-                      </button>
-                  </div>
+                  {/* ESCONDE O BOTÃO DE GERENCIAR EQUIPES DE QUEM NÃO FOR ADMIN */}
+                  {isUserAdmin && (
+                    <div className="mb-12">
+                        <button onClick={() => setView('manage-team')} className="flex items-center gap-2 bg-purple-100 text-purple-700 hover:bg-purple-200 hover:scale-105 transition-all font-bold py-3 px-6 rounded-xl shadow-sm border border-purple-200">
+                            <span className="text-xl">👥</span> Editar Nomes Padrão das Equipes
+                        </button>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-3xl">
                       <button onClick={() => handleSelectPlantao('ALFA')} className="relative bg-gradient-to-br from-blue-500 to-blue-700 text-white p-10 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-blue-500/30 hover:-translate-y-2 transition-all duration-300 group overflow-hidden">
@@ -500,7 +569,7 @@ export default function Home() {
               </div>
           )}
 
-          {view === 'form' && (
+          {view === 'form' && userName && (
               <form className="p-6 md:p-10 space-y-10 animate-fade-in-up" onSubmit={(e) => e.preventDefault()}>
               
               {formData.id && (
@@ -524,9 +593,9 @@ export default function Home() {
                       <input type="text" name="data" value={formData.data} onChange={handleChange} className="w-36 bg-transparent font-black text-gray-800 text-lg outline-none border-b-2 border-transparent focus:border-blue-500 transition-colors" />
                     </div>
                   </div>
-                  <div className="text-sm text-gray-500 bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100 hidden md:flex items-center gap-2">
+                  <div className="text-sm text-gray-600 bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100 hidden md:flex items-center gap-2 font-bold">
                     <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                    {session.user.email}
+                    Olá, {userName}!
                   </div>
               </div>
               

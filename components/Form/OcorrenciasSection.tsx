@@ -13,7 +13,7 @@ export default function OcorrenciasSection({ formData, onChange, gerenciarArray 
   return (
     <div className="space-y-6 mt-8">
       
-      {/* CARD: SAÍDA EXTERNA (AGORA DINÂMICO E MÚLTIPLO) */}
+      {/* CARD: SAÍDA EXTERNA */}
       <section className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm transition-all hover:shadow-md">
         <label className="flex items-center gap-3 cursor-pointer group">
           <input type="checkbox" name="temSaida" checked={formData.temSaida} onChange={onChange} className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer" />
@@ -54,21 +54,40 @@ export default function OcorrenciasSection({ formData, onChange, gerenciarArray 
         </label>
 
         {formData.temAdmissao && (
-          <div className="mt-5 space-y-3 animate-fade-in-up">
+          <div className="mt-5 space-y-4 animate-fade-in-up">
             {formData.admissoes?.map((adm: any, i: number) => (
-              <div key={i} className="flex gap-3 items-center bg-green-50/50 p-3 rounded-2xl border border-green-100">
-                <input type="text" placeholder="Nome da Admissão" value={adm.nome} onChange={(e) => gerenciarArray('admissoes', i, 'nome', e.target.value)} className="flex-1 border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-green-400" />
-                <button type="button" onClick={() => gerenciarArray('admissoes', i, '', '', true)} className="bg-red-50 hover:bg-red-500 text-red-500 hover:text-white w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl transition-all border border-red-200 hover:border-transparent">✕</button>
+              <div key={i} className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-green-50/50 p-5 rounded-2xl border border-green-100 relative mt-2">
+                <button type="button" onClick={() => gerenciarArray('admissoes', i, '', '', true)} className="absolute -top-3 -right-3 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white w-8 h-8 rounded-full flex items-center justify-center font-bold transition-all border border-red-200 hover:border-transparent shadow-sm">✕</button>
+                
+                <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Adolescente</label>
+                    <input type="text" value={adm.nome || ''} onChange={(e) => gerenciarArray('admissoes', i, 'nome', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-green-400" placeholder="Nome do adolescente admitido" />
+                </div>
+                
+                <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Equipe Técnica / Supervisor</label>
+                    <input type="text" value={adm.quemRecebeu || ''} onChange={(e) => gerenciarArray('admissoes', i, 'quemRecebeu', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-green-400" placeholder="Quem recebeu?" />
+                </div>
+                
+                <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Quem fez a vistoria?</label>
+                    <input type="text" value={adm.quemVistoria || ''} onChange={(e) => gerenciarArray('admissoes', i, 'quemVistoria', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-green-400" placeholder="Nome do responsável" />
+                </div>
+                
+                <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Horário</label>
+                    <input type="time" value={adm.horario || ''} onChange={(e) => gerenciarArray('admissoes', i, 'horario', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-green-400 bg-white" />
+                </div>
               </div>
             ))}
-            <button type="button" onClick={() => gerenciarArray('admissoes', 0, '', '', false, true, { nome: '' })} className="text-sm font-bold text-green-600 bg-green-50 hover:bg-green-100 px-4 py-2 rounded-xl transition-colors border border-green-200 flex items-center gap-2">
+            <button type="button" onClick={() => gerenciarArray('admissoes', 0, '', '', false, true, { nome: '', quemRecebeu: '', quemVistoria: '', horario: '' })} className="text-sm font-bold text-green-600 bg-green-50 hover:bg-green-100 px-4 py-2 rounded-xl transition-colors border border-green-200 flex items-center gap-2 mt-4">
               <span>➕</span> Adicionar Admissão
             </button>
           </div>
         )}
       </section>
 
-      {/* CARD: DESLIGAMENTOS */}
+      {/* CARD: DESLIGAMENTOS (ATUALIZADO COM NOVOS CAMPOS) */}
       <section className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm transition-all hover:shadow-md">
         <label className="flex items-center gap-3 cursor-pointer group">
           <input type="checkbox" name="temDesligamento" checked={formData.temDesligamento} onChange={onChange} className="w-5 h-5 text-red-600 rounded border-gray-300 focus:ring-red-500 cursor-pointer" />
@@ -76,14 +95,38 @@ export default function OcorrenciasSection({ formData, onChange, gerenciarArray 
         </label>
 
         {formData.temDesligamento && (
-          <div className="mt-5 space-y-3 animate-fade-in-up">
+          <div className="mt-5 space-y-4 animate-fade-in-up">
             {formData.desligamentos?.map((desl: any, i: number) => (
-              <div key={i} className="flex gap-3 items-center bg-red-50/50 p-3 rounded-2xl border border-red-100">
-                <input type="text" placeholder="Nome do Desligado" value={desl.nome} onChange={(e) => gerenciarArray('desligamentos', i, 'nome', e.target.value)} className="flex-1 border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-red-400" />
-                <button type="button" onClick={() => gerenciarArray('desligamentos', i, '', '', true)} className="bg-red-50 hover:bg-red-500 text-red-500 hover:text-white w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl transition-all border border-red-200 hover:border-transparent">✕</button>
+              <div key={i} className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-red-50/50 p-5 rounded-2xl border border-red-100 relative mt-2">
+                <button type="button" onClick={() => gerenciarArray('desligamentos', i, '', '', true)} className="absolute -top-3 -right-3 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white w-8 h-8 rounded-full flex items-center justify-center font-bold transition-all border border-red-200 hover:border-transparent shadow-sm">✕</button>
+                
+                <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Adolescente</label>
+                    <input type="text" value={desl.nome || ''} onChange={(e) => gerenciarArray('desligamentos', i, 'nome', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-red-400" placeholder="Nome do adolescente desligado" />
+                </div>
+                
+                <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Quem levou?</label>
+                    <input type="text" value={desl.quemLevou || ''} onChange={(e) => gerenciarArray('desligamentos', i, 'quemLevou', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-red-400" placeholder="Ex: Educador João, Oficial de Justiça..." />
+                </div>
+
+                <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Motorista</label>
+                    <input type="text" value={desl.motorista || ''} onChange={(e) => gerenciarArray('desligamentos', i, 'motorista', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-red-400" placeholder="Nome do motorista" />
+                </div>
+                
+                <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Quem fez a vistoria?</label>
+                    <input type="text" value={desl.quemVistoria || ''} onChange={(e) => gerenciarArray('desligamentos', i, 'quemVistoria', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-red-400" placeholder="Nome do responsável pela vistoria" />
+                </div>
+                
+                <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-500 uppercase">Horário</label>
+                    <input type="time" value={desl.horario || ''} onChange={(e) => gerenciarArray('desligamentos', i, 'horario', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-red-400 bg-white" />
+                </div>
               </div>
             ))}
-            <button type="button" onClick={() => gerenciarArray('desligamentos', 0, '', '', false, true, { nome: '' })} className="text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-xl transition-colors border border-red-200 flex items-center gap-2">
+            <button type="button" onClick={() => gerenciarArray('desligamentos', 0, '', '', false, true, { nome: '', quemLevou: '', motorista: '', quemVistoria: '', horario: '' })} className="text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-xl transition-colors border border-red-200 flex items-center gap-2 mt-4">
               <span>➕</span> Adicionar Desligamento
             </button>
           </div>
