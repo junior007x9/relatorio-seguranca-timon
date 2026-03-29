@@ -69,6 +69,7 @@ export default function Home() {
   const [session, setSession] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [isAutoSaving, setIsAutoSaving] = useState(false); // Estado para o Auto-Save
   
   const [view, setView] = useState<'select-plantao' | 'form' | 'history' | 'admin' | 'manage-team' | 'set-name'>('select-plantao');
   const [userName, setUserName] = useState<string>(''); 
@@ -329,7 +330,6 @@ export default function Home() {
     setIsRecording(true);
   };
 
-  // Função de exclusão atualizada - apaga diretamente pelo Supabase sem pedir palavra-passe
   const handleDeleteReport = async (id: number) => {
     if (session?.user?.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
         return alert("Apenas o administrador pode excluir relatórios.");
@@ -377,9 +377,29 @@ export default function Home() {
       historico_edicoes: novoHistorico
     };
 
-    if (formData.id) return await supabase.from('relatorios').update(payload).eq('id', formData.id);
-    return await supabase.from('relatorios').insert([payload]);
+    if (formData.id) return await supabase.from('relatorios').update(payload).eq('id', formData.id).select();
+    return await supabase.from('relatorios').insert([payload]).select();
   };
+
+  // --- EFEITO: Salvamento Automático em Nuvem (Auto-Save) ---
+  useEffect(() => {
+    if (view !== 'form') return;
+    if (!formData.plantao) return;
+
+    const timer = setTimeout(async () => {
+        setIsAutoSaving(true);
+        const { data, error } = await salvarNoSupabase();
+        
+        if (!error && data && data.length > 0) {
+            if (!formData.id) {
+                setFormData(prev => ({ ...prev, id: data[0].id }));
+            }
+        }
+        setIsAutoSaving(false);
+    }, 2000); 
+
+    return () => clearTimeout(timer);
+  }, [formData, view]);
 
   const handleSalvarApenas = async () => {
     setLoading(true);
@@ -418,6 +438,22 @@ export default function Home() {
         
         {userName && (
           <div className="flex items-center gap-3 flex-wrap justify-end flex-1">
+
+              {/* AVISO DO AUTO-SAVE */}
+              {view === 'form' && (
+                  <div className="flex items-center gap-2 text-xs sm:text-sm font-bold bg-white/60 px-3 py-1.5 rounded-full border border-gray-200">
+                      {isAutoSaving ? (
+                          <span className="text-blue-500 animate-pulse flex items-center gap-2">
+                              <span className="animate-spin">⏳</span> Salvando na nuvem...
+                          </span>
+                      ) : (
+                          <span className="text-green-600 flex items-center gap-2">
+                              <span>✅</span> Salvo na nuvem
+                          </span>
+                      )}
+                  </div>
+              )}
+
               {view === 'form' && (
                 <div className="flex gap-2 bg-gray-100/50 p-1.5 rounded-xl border border-gray-200">
                   <button onClick={() => gerarWord(formData)} className="bg-white text-blue-700 px-4 py-2 rounded-lg shadow-sm hover:shadow-md hover:scale-105 transition-all flex items-center gap-2 font-bold text-sm">
