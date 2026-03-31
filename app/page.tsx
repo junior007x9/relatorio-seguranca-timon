@@ -117,29 +117,53 @@ export default function Home() {
     if (session && userName) fetchHistory();
   }, [session, userName, fetchHistory]);
 
-  // Efeito para carregar as equipas salvas no Cache (LocalStorage)
+  // Efeito para carregar as equipas salvas na Nuvem (Supabase) e no LocalStorage
   useEffect(() => {
-    try {
-        const equipesSalvas = localStorage.getItem('equipes_cadastradas');
-        if (equipesSalvas) {
-            const parsedEquipes = JSON.parse(equipesSalvas);
-            if (parsedEquipes && parsedEquipes.ALFA && parsedEquipes.BETA) {
-                setEquipes(parsedEquipes);
-            }
+    const carregarEquipes = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('configuracoes')
+          .select('valor')
+          .eq('chave', 'equipes_padrao')
+          .single();
+
+        if (!error && data && data.valor) {
+          setEquipes(data.valor);
+          // Opcional: Atualizar cache local como backup
+          localStorage.setItem('equipes_cadastradas', JSON.stringify(data.valor));
+        } else {
+          // Fallback para o localStorage se a internet falhar
+          const equipesSalvas = localStorage.getItem('equipes_cadastradas');
+          if (equipesSalvas) setEquipes(JSON.parse(equipesSalvas));
         }
-    } catch (error) {
-        console.error("Erro ao carregar as equipes salvas:", error);
-    }
+      } catch (error) {
+        console.error("Erro ao carregar as equipes da nuvem:", error);
+      }
+    };
+    
+    carregarEquipes();
   }, []); 
 
-  const handleSalvarEquipes = () => {
+  const handleSalvarEquipes = async () => {
+      setLoading(true);
       try {
+          // Salva na nuvem usando upsert (atualiza se existir, insere se não existir)
+          const { error } = await supabase
+            .from('configuracoes')
+            .upsert({ chave: 'equipes_padrao', valor: equipes }, { onConflict: 'chave' });
+
+          if (error) throw error;
+
+          // Atualiza também o cache local
           localStorage.setItem('equipes_cadastradas', JSON.stringify(equipes));
-          alert('✅ Equipes atualizadas e salvas com sucesso neste dispositivo!');
+          
+          alert('✅ Equipas atualizadas e sincronizadas na nuvem com sucesso!');
           setView('select-plantao');
           window.scrollTo(0,0);
-      } catch (error) {
-          alert('❌ Ocorreu um erro ao salvar as equipes no cache do seu navegador.');
+      } catch (error: any) {
+          alert('❌ Ocorreu um erro ao guardar as equipas na nuvem: ' + error.message);
+      } finally {
+          setLoading(false);
       }
   };
 
@@ -444,11 +468,11 @@ export default function Home() {
                   <div className="flex items-center gap-2 text-xs sm:text-sm font-bold bg-white/60 px-3 py-1.5 rounded-full border border-gray-200">
                       {isAutoSaving ? (
                           <span className="text-blue-500 animate-pulse flex items-center gap-2">
-                              <span className="animate-spin">⏳</span> Salvando na nuvem...
+                              <span className="animate-spin">⏳</span> A guardar na nuvem...
                           </span>
                       ) : (
                           <span className="text-green-600 flex items-center gap-2">
-                              <span>✅</span> Salvo na nuvem
+                              <span>✅</span> Guardado na nuvem
                           </span>
                       )}
                   </div>
@@ -543,7 +567,7 @@ export default function Home() {
                     </h2>
                     <p className="text-gray-500 mt-2 text-sm md:text-base">
                        Atualize aqui quem está na equipa de cada plantão. <br/>
-                       <span className="text-amber-600 font-bold bg-amber-50 px-2 py-1 rounded">⚠️ Atenção:</span> Por segurança e para não sobrecarregar a base de dados, estas alterações ficam guardadas na memória local deste dispositivo. Se usar outro computador/telemóvel, precisará de as atualizar lá também.
+                       <span className="text-blue-600 font-bold bg-blue-50 px-2 py-1 rounded">☁️ Sincronização Ativa:</span> As alterações feitas aqui serão sincronizadas na nuvem e ficarão visíveis para todos os administradores em qualquer dispositivo.
                     </p>
                 </div>
 
@@ -579,7 +603,9 @@ export default function Home() {
 
                 <div className="mt-8 flex gap-4 flex-col sm:flex-row">
                     <button onClick={() => setView('select-plantao')} className="flex-1 bg-white border border-gray-200 text-gray-700 font-bold py-4 rounded-2xl hover:bg-gray-50 transition-all">Cancelar</button>
-                    <button onClick={handleSalvarEquipes} className="flex-1 bg-purple-600 text-white font-bold py-4 rounded-2xl hover:bg-purple-700 shadow-xl shadow-purple-500/30 transition-all text-lg">💾 Guardar Atualizações</button>
+                    <button onClick={handleSalvarEquipes} disabled={loading} className="flex-1 bg-purple-600 text-white font-bold py-4 rounded-2xl hover:bg-purple-700 shadow-xl shadow-purple-500/30 transition-all text-lg disabled:opacity-50">
+                        {loading ? 'A guardar...' : '💾 Guardar Atualizações'}
+                    </button>
                 </div>
             </div>
           )}
