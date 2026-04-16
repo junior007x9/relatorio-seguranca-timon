@@ -34,7 +34,8 @@ const TEMPO_AVISO = 4.5 * 60 * 1000;
 // --- DADOS PADRÃO ---
 const getBaseData = (): RelatorioData => ({
     data: new Date().toLocaleDateString('pt-BR'),
-    coordenador: 'Erasmo Leite', supervisor: '', educadores: '', apoio: '', cozinha: '', servicosGerais: '', portaria: '', plantao: '',
+    coordenador: '', // <-- Nome fixo removido aqui
+    supervisor: '', educadores: '', apoio: '', cozinha: '', servicosGerais: '', portaria: '', plantao: '',
     tonfas: '08', algemas: '03', chavesAcesso: '30', chavesAlgemas: '02', escudos: '02', lanternas: '02', celular: '01', radioCelular: '0', radioHT: '04', cadeados: '30', pendrives: '02',
     alojamentos: {
         '01': { qtd: '02', nomes: 'Mateus, Felipe' },
@@ -96,7 +97,8 @@ export default function Home() {
     if (data) {
       setHistorico(data.map((item: any) => ({
         ...item, data: item.data_plantao, apoio: item.apoio_geral || item.servicos_gerais || '', 
-        coordenador: item.coordenador || 'Erasmo Leite', cozinha: item.equipe_cozinha || '',
+        coordenador: item.coordenador || '', // <-- Nome fixo removido aqui também
+        cozinha: item.equipe_cozinha || '',
         servicosGerais: item.equipe_servicos_gerais || '', portaria: item.equipe_portaria || '',
         resumoPlantao: item.resumo_plantao, assinaturaDiurno: item.plantao_diurno, assinaturaNoturno: item.plantao_noturno, 
         assinaturaDiurnoImg: item.assinatura_diurno_img || '', assinaturaNoturnoImg: item.assinatura_noturno_img || '',
@@ -175,6 +177,7 @@ export default function Home() {
       setFormData({
           ...base,
           plantao: tipo === 'ALFA' ? 'Alfa Diurno' : 'Beta Diurno',
+          coordenador: ultimo?.coordenador || base.coordenador, // <-- Agora herda o coordenador do último relatório
           supervisor: equipe.supervisor || '',
           educadores: equipe.educadores || '',
           portaria: equipe.portaria || '',
