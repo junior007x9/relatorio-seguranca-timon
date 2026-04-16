@@ -13,11 +13,12 @@ export default function MateriaisSection({ formData, onChange }: Props) {
     { label: 'Tonfas', name: 'tonfas', icon: '🏏' },
     { label: 'Algemas', name: 'algemas', icon: '🔗' },
     { label: 'Chaves de Acesso', name: 'chavesAcesso', icon: '🔑' },
-    { label: 'Chaves Algemas', name: 'chavesAlgemas', icon: '🗝️' },
+    { label: 'Rádio Celular', name: 'radioCelular', icon: '📱' }, // <-- Entrou no lugar das Chaves Algemas
     { label: 'Escudos', name: 'escudos', icon: '🛡️' },
     { label: 'Lanternas', name: 'lanternas', icon: '🔦' },
     { label: 'Celular', name: 'celular', icon: '📱' },
     { label: 'Rádio HT', name: 'radioHT', icon: '📻' },
+    { label: 'Chaves Algemas', name: 'chavesAlgemas', icon: '🗝️' }, // <-- Movido para cá (vice-versa)
     { label: 'Cadeados', name: 'cadeados', icon: '🔒' },
     { label: 'Pendrives', name: 'pendrives', icon: '💾' }
   ];

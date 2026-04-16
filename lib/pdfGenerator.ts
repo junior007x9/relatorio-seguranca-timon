@@ -106,10 +106,11 @@ export const gerarPDF = async (dados: RelatorioData) => {
               { text: 'ITEM', bold: true, fillColor: '#e2e8f0', alignment: 'center' }, 
               { text: 'QTD', bold: true, fillColor: '#e2e8f0', alignment: 'center' }
             ],
+            // AQUI FOI FEITA A TROCA ENTRE CHAVES DE ALGEMAS E RÁDIO CELULAR
             ['Tonfas', { text: dados.tonfas || '0', alignment: 'center' }, 'Celular + Carregador', { text: dados.celular || '0', alignment: 'center' }],
-            ['Algemas', { text: dados.algemas || '0', alignment: 'center' }, 'Rádio Celular', { text: dados.radioCelular || '0', alignment: 'center' }],
+            ['Algemas', { text: dados.algemas || '0', alignment: 'center' }, 'Chaves Algemas', { text: dados.chavesAlgemas || '0', alignment: 'center' }],
             ['Chaves Acesso', { text: dados.chavesAcesso || '0', alignment: 'center' }, 'Rádio HT', { text: dados.radioHT || '0', alignment: 'center' }],
-            ['Chaves Algemas', { text: dados.chavesAlgemas || '0', alignment: 'center' }, 'Cadeados', { text: dados.cadeados || '0', alignment: 'center' }],
+            ['Rádio Celular', { text: dados.radioCelular || '0', alignment: 'center' }, 'Cadeados', { text: dados.cadeados || '0', alignment: 'center' }],
             ['Escudos', { text: dados.escudos || '0', alignment: 'center' }, 'Pendrives', { text: dados.pendrives || '0', alignment: 'center' }],
             ['Lanternas', { text: dados.lanternas || '0', alignment: 'center' }, '', ''],
           ]
@@ -163,22 +164,25 @@ export const gerarPDF = async (dados: RelatorioData) => {
     if (temOcorrencia) {
         contentArray.push(criarCabecalhoSecao('🚨 OCORRÊNCIAS REGISTRADAS', '#b91c1c'));
 
-        if (dados.temSaida) {
-          contentArray.push(
-              { text: '▶ SAÍDA EXTERNA', bold: true, color: '#b91c1c', margin: [0, 5, 0, 2], fontSize: 11 },
-              {
-                  table: {
-                      widths: ['*', '*', '*'],
-                      body: [[
-                          { text: [{ text: 'Adolescente: ', bold: true }, dados.saidaAdolescente], fontSize: 10 },
-                          { text: [{ text: 'Educador: ', bold: true }, dados.saidaEducador], fontSize: 10 },
-                          { text: [{ text: 'Horário: ', bold: true }, dados.saidaHorario], fontSize: 10 }
-                      ]]
-                  },
-                  layout: 'lightHorizontalLines',
-                  margin: [0, 0, 0, 10]
-              }
-          );
+        // AQUI FOI CORRIGIDA A LEITURA DAS MÚLTIPLAS SAÍDAS EXTERNAS
+        if (dados.temSaida && dados.saidas && dados.saidas.length > 0) {
+          contentArray.push({ text: '▶ SAÍDAS EXTERNAS', bold: true, color: '#b91c1c', margin: [0, 5, 0, 2], fontSize: 11 });
+          dados.saidas.forEach((s: any) => {
+              contentArray.push(
+                  {
+                      table: {
+                          widths: ['*', '*', '*'],
+                          body: [[
+                              { text: [{ text: 'Adolescente: ', bold: true }, s.adolescente], fontSize: 10 },
+                              { text: [{ text: 'Educador: ', bold: true }, s.educador], fontSize: 10 },
+                              { text: [{ text: 'Horário: ', bold: true }, s.horario], fontSize: 10 }
+                          ]]
+                      },
+                      layout: 'lightHorizontalLines',
+                      margin: [0, 0, 0, 5]
+                  }
+              );
+          });
         }
 
         if (dados.temAdmissao && dados.admissoes && dados.admissoes.length > 0) {
