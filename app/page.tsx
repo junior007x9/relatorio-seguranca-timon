@@ -63,7 +63,8 @@ const getTemplateVazio = (): RelatorioData => ({
 
 const defaultEquipes = {
     ALFA: { supervisor: 'Rosem', educadores: 'Júnior, Wellington, Gleidson, Anderson, Francilio, Elizandria, Diego', portaria: 'Paulo', cozinha: 'Liliane', servicosGerais: 'Ana' },
-    BETA: { supervisor: 'Jailson', educadores: 'Wilson/Maria José/Marcos Paulo/marciana/wrobison/Orlando', portaria: 'Paulo', cozinha: 'IVA', servicosGerais: 'Francisca' }
+    BETA: { supervisor: 'Jailson', educadores: 'Wilson/Maria José/Marcos Paulo/marciana/wrobison/Orlando', portaria: 'Paulo', cozinha: 'IVA', servicosGerais: 'Francisca' },
+    BETA_NOTURNO: { supervisor: 'ADIVAN RIBEIRO SILVEIRA', educadores: 'RAILSON DA SILVA MONTEIRO, FRANCIELIO DA SILVA VICENTE, LANNYO KENNED ARAUJO BARBOSA, FRANCISCO HELIO RODRIGUES', portaria: 'Paulo', cozinha: 'IVA', servicosGerais: 'Francisca' }
 };
 
 export default function Home() {
@@ -83,7 +84,7 @@ export default function Home() {
   const [formData, setFormData] = useState<RelatorioData>(getTemplateVazio());
   
   const [equipes, setEquipes] = useState<any>(defaultEquipes);
-  const [editandoEquipe, setEditandoEquipe] = useState<'ALFA' | 'BETA'>('ALFA');
+  const [editandoEquipe, setEditandoEquipe] = useState<'ALFA' | 'BETA' | 'BETA_NOTURNO'>('ALFA');
 
   const logoutTimerRef = useRef<NodeJS.Timeout | null>(null);
   const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -129,11 +130,15 @@ export default function Home() {
           .single();
 
         if (!error && data && data.valor) {
-          setEquipes(data.valor);
-          localStorage.setItem('equipes_cadastradas', JSON.stringify(data.valor));
+          // Mescla as equipas vindas da nuvem com as padrões locais para evitar perder novos plantões inseridos no código
+          const mergedEquipes = { ...defaultEquipes, ...data.valor };
+          setEquipes(mergedEquipes);
+          localStorage.setItem('equipes_cadastradas', JSON.stringify(mergedEquipes));
         } else {
           const equipesSalvas = localStorage.getItem('equipes_cadastradas');
-          if (equipesSalvas) setEquipes(JSON.parse(equipesSalvas));
+          if (equipesSalvas) {
+            setEquipes({ ...defaultEquipes, ...JSON.parse(equipesSalvas) });
+          }
         }
       } catch (error) {
         console.error("Erro ao carregar as equipes da nuvem:", error);
@@ -164,14 +169,19 @@ export default function Home() {
       }
   };
 
-  const handleSelectPlantao = (tipo: 'ALFA' | 'BETA') => {
+  const handleSelectPlantao = (tipo: 'ALFA' | 'BETA' | 'BETA_NOTURNO') => {
       const base = getBaseData();
-      const equipe = equipes[tipo];
+      const equipe = equipes[tipo] || defaultEquipes[tipo]; // Fallback de segurança
       const ultimo = historico.length > 0 ? historico[0] : null;
       
+      let nomePlantao = '';
+      if (tipo === 'ALFA') nomePlantao = 'Alfa Diurno';
+      else if (tipo === 'BETA') nomePlantao = 'Beta Diurno';
+      else if (tipo === 'BETA_NOTURNO') nomePlantao = 'Beta Noturno';
+
       setFormData({
           ...base,
-          plantao: tipo === 'ALFA' ? 'Alfa Diurno' : 'Beta Diurno',
+          plantao: nomePlantao,
           coordenador: ultimo?.coordenador || base.coordenador, 
           supervisor: equipe.supervisor || '',
           educadores: equipe.educadores || '',
@@ -431,11 +441,9 @@ export default function Home() {
     return await supabase.from('relatorios').insert([payload]).select();
   };
 
-  // --- EFEITO AUTO-SAVE CORRIGIDO ---
   useEffect(() => {
     if (view !== 'form') return;
     if (!formData.plantao) return;
-    // O SEGREDO ESTÁ AQUI: Só faz auto-save se o resumo do plantão já tiver sido iniciado! (evita salvar relatórios vazios)
     if (!formData.resumoPlantao || formData.resumoPlantao.trim().length < 5) return;
 
     const timer = setTimeout(async () => {
@@ -453,11 +461,9 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [formData, view]);
 
-  // --- VALIDAÇÃO OBRIGATÓRIA PARA BOTÕES MANUAIS ---
   const validarRelatorio = () => {
     if (!formData.resumoPlantao || formData.resumoPlantao.trim().length < 5) {
         alert("⚠️ O Resumo do Plantão é OBRIGATÓRIO! Por favor, preencha-o antes de guardar.");
-        // Faz a página rolar automaticamente para a secção do resumo
         document.getElementById('resumo-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return false;
     }
@@ -465,7 +471,7 @@ export default function Home() {
   };
 
   const handleSalvarApenas = async () => {
-    if (!validarRelatorio()) return; // Impede salvar sem resumo
+    if (!validarRelatorio()) return;
     setLoading(true);
     const { error } = await salvarNoSupabase();
     setLoading(false);
@@ -474,7 +480,7 @@ export default function Home() {
   };
 
   const handleSaveAndSend = async () => {
-    if (!validarRelatorio()) return; // Impede salvar sem resumo
+    if (!validarRelatorio()) return;
     setLoading(true);
     const { error } = await salvarNoSupabase();
     setLoading(false);
@@ -611,12 +617,15 @@ export default function Home() {
                     </p>
                 </div>
 
-                <div className="flex flex-col md:flex-row gap-4 mb-8">
-                    <button onClick={() => setEditandoEquipe('ALFA')} className={`flex-1 py-4 px-6 rounded-2xl font-black text-lg transition-all flex justify-center items-center gap-2 ${editandoEquipe === 'ALFA' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 -translate-y-1' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                        ☀️ Equipa ALFA
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                    <button onClick={() => setEditandoEquipe('ALFA')} className={`flex-1 py-4 px-4 rounded-2xl font-black text-lg transition-all flex justify-center items-center gap-2 ${editandoEquipe === 'ALFA' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 -translate-y-1' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                        ☀️ ALFA
                     </button>
-                    <button onClick={() => setEditandoEquipe('BETA')} className={`flex-1 py-4 px-6 rounded-2xl font-black text-lg transition-all flex justify-center items-center gap-2 ${editandoEquipe === 'BETA' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/30 -translate-y-1' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                        🌿 Equipa BETA
+                    <button onClick={() => setEditandoEquipe('BETA')} className={`flex-1 py-4 px-4 rounded-2xl font-black text-lg transition-all flex justify-center items-center gap-2 ${editandoEquipe === 'BETA' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/30 -translate-y-1' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                        🌿 BETA
+                    </button>
+                    <button onClick={() => setEditandoEquipe('BETA_NOTURNO')} className={`flex-1 py-4 px-4 rounded-2xl font-black text-lg transition-all flex justify-center items-center gap-2 ${editandoEquipe === 'BETA_NOTURNO' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 -translate-y-1' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                        🌙 BETA Noturno
                     </button>
                 </div>
 
@@ -632,7 +641,7 @@ export default function Home() {
                             <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">{campo.label}</label>
                             <input 
                                 type="text" 
-                                value={equipes[editandoEquipe][campo.name]} 
+                                value={equipes[editandoEquipe]?.[campo.name] || ''} 
                                 onChange={(e) => setEquipes((prev: any) => ({...prev, [editandoEquipe]: {...prev[editandoEquipe], [campo.name]: e.target.value}}))}
                                 className="w-full bg-white border border-gray-200 p-4 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 text-gray-800 font-medium shadow-sm transition-all"
                                 placeholder={`Nome(s) para ${campo.label.toLowerCase()}`}
@@ -668,8 +677,8 @@ export default function Home() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-3xl">
-                      <button onClick={() => handleSelectPlantao('ALFA')} className="relative bg-gradient-to-br from-blue-500 to-blue-700 text-white p-10 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-blue-500/30 hover:-translate-y-2 transition-all duration-300 group overflow-hidden border border-blue-400">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-5xl">
+                      <button onClick={() => handleSelectPlantao('ALFA')} className="relative bg-gradient-to-br from-blue-500 to-blue-700 text-white p-8 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-blue-500/30 hover:-translate-y-2 transition-all duration-300 group overflow-hidden border border-blue-400">
                           <div className="absolute -top-10 -right-10 w-40 h-40 bg-white opacity-10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
                           <div className="flex flex-col items-center gap-3 relative z-10">
                             <span className="text-6xl group-hover:scale-110 transition-transform duration-300 drop-shadow-md">☀️</span>
@@ -678,12 +687,21 @@ export default function Home() {
                           </div>
                       </button>
                       
-                      <button onClick={() => handleSelectPlantao('BETA')} className="relative bg-gradient-to-br from-emerald-500 to-teal-700 text-white p-10 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-emerald-500/30 hover:-translate-y-2 transition-all duration-300 group overflow-hidden border border-emerald-400">
+                      <button onClick={() => handleSelectPlantao('BETA')} className="relative bg-gradient-to-br from-emerald-500 to-teal-700 text-white p-8 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-emerald-500/30 hover:-translate-y-2 transition-all duration-300 group overflow-hidden border border-emerald-400">
                           <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white opacity-10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
                           <div className="flex flex-col items-center gap-3 relative z-10">
                             <span className="text-6xl group-hover:scale-110 transition-transform duration-300 drop-shadow-md">🌿</span>
                             <span className="text-4xl font-black tracking-wide mt-2">BETA</span>
                             <span className="bg-white/20 px-4 py-1 rounded-full text-sm font-bold tracking-widest uppercase backdrop-blur-sm border border-white/30">Diurno</span>
+                          </div>
+                      </button>
+
+                      <button onClick={() => handleSelectPlantao('BETA_NOTURNO')} className="relative bg-gradient-to-br from-indigo-500 to-purple-700 text-white p-8 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-indigo-500/30 hover:-translate-y-2 transition-all duration-300 group overflow-hidden border border-indigo-400">
+                          <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white opacity-10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+                          <div className="flex flex-col items-center gap-3 relative z-10">
+                            <span className="text-6xl group-hover:scale-110 transition-transform duration-300 drop-shadow-md">🌙</span>
+                            <span className="text-4xl font-black tracking-wide mt-2">BETA</span>
+                            <span className="bg-white/20 px-4 py-1 rounded-full text-sm font-bold tracking-widest uppercase backdrop-blur-sm border border-white/30">Noturno</span>
                           </div>
                       </button>
                   </div>
@@ -732,7 +750,6 @@ export default function Home() {
                 <AlojamentosSection formData={formData} handleAlojamentoChange={handleAlojamentoChange} totalAtual={totalAtual} />
               </div>
               
-              {/* --- SECÇÃO DO MICROFONE CORRIGIDA COM MELHORIA VISUAL --- */}
               <section id="resumo-section" className={`relative mt-12 p-6 rounded-3xl border transition-all duration-300 ${isRecording ? 'bg-blue-100/80 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.3)]' : 'bg-blue-50/50 border-blue-100 shadow-sm'}`}>
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                       <div className="flex flex-col">
