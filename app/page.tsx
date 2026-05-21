@@ -336,7 +336,7 @@ export default function Home() {
       }
   };
 
-  // --- LÓGICA DO MICROFONE CORRIGIDA COM EVENT.RESULTINDEX E BASETEXTREF ---
+  // --- LÓGICA DO MICROFONE 100% CORRIGIDA (SOLUÇÃO DEFINITIVA PARA ANDROID) ---
   const toggleRecording = () => {
     if (isRecording) {
       if (recognitionRef.current) recognitionRef.current.stop();
@@ -350,33 +350,32 @@ export default function Home() {
     const recognition = new SpeechRecognition();
     recognition.lang = 'pt-BR';
     recognition.continuous = true;
-    recognition.interimResults = true; 
     
-    // 1. Guardamos o texto base que já estava na caixa de texto
+    // DETETA SE É TELEMÓVEL (Android, iOS, etc.)
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // O grande truque para curar o bug de repetição no Android: 
+    // Desativar resultados "interinos" em telemóveis. Assim ele só insere a frase quando você fizer uma pausa.
+    recognition.interimResults = !isMobile; 
+
+    // Guarda exatamente como o texto estava ANTES de ligar o microfone (intocável durante a sessão)
     baseTextRef.current = formData.resumoPlantao || '';
 
     recognition.onresult = (event: any) => {
-      let finalTranscript = '';
-      let interimTranscript = '';
+      let textoDaSessaoAtual = '';
 
-      // 2. Percorremos SOMENTE as palavras novas desta sessão (ignora o histórico do navegador para evitar repetições)
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
-        } else {
-          interimTranscript += event.results[i][0].transcript;
-        }
+      // Reconstrói a frase gerada EXCLUSIVAMENTE nesta gravação a partir do zero
+      // Ignorar o `event.resultIndex` resolve as duplicações e gaguejos do Chrome
+      for (let i = 0; i < event.results.length; i++) {
+        textoDaSessaoAtual += ' ' + event.results[i][0].transcript.trim();
       }
 
-      // 3. Se algo foi confirmado como final, somamos ao nosso texto base
-      if (finalTranscript) {
-        baseTextRef.current = (baseTextRef.current + ' ' + finalTranscript).trim();
-      }
+      // Soma TUDO o que existia antes (baseTextRef) com o novo texto exato da sessão
+      const textoCompleto = (baseTextRef.current + textoDaSessaoAtual).replace(/\s+/g, ' ').trim();
 
-      // 4. Atualizamos o formulário com o texto base + o palpite (interim)
       setFormData(prev => ({ 
         ...prev, 
-        resumoPlantao: (baseTextRef.current + ' ' + interimTranscript).trim() 
+        resumoPlantao: textoCompleto
       }));
     };
 
@@ -794,7 +793,8 @@ export default function Home() {
                         </h3>
                         {isRecording ? (
                           <span className="text-blue-600 font-bold text-sm mt-2 flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span> O microfone está a ouvir... fale de forma pausada.
+                            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span> O microfone está a ouvir... 
+                            <span className="hidden sm:inline">fale e aguarde a transcrição.</span>
                           </span>
                         ) : (
                           <span className="text-gray-500 font-medium text-xs mt-1 ml-14">
