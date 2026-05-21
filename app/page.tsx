@@ -325,7 +325,6 @@ export default function Home() {
       }
   };
 
-  // --- FUNÇÃO DO MICROFONE CORRIGIDA ---
   const toggleRecording = () => {
     if (isRecording) {
       if (recognitionRef.current) recognitionRef.current.stop();
@@ -432,9 +431,12 @@ export default function Home() {
     return await supabase.from('relatorios').insert([payload]).select();
   };
 
+  // --- EFEITO AUTO-SAVE CORRIGIDO ---
   useEffect(() => {
     if (view !== 'form') return;
     if (!formData.plantao) return;
+    // O SEGREDO ESTÁ AQUI: Só faz auto-save se o resumo do plantão já tiver sido iniciado! (evita salvar relatórios vazios)
+    if (!formData.resumoPlantao || formData.resumoPlantao.trim().length < 5) return;
 
     const timer = setTimeout(async () => {
         setIsAutoSaving(true);
@@ -451,7 +453,19 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [formData, view]);
 
+  // --- VALIDAÇÃO OBRIGATÓRIA PARA BOTÕES MANUAIS ---
+  const validarRelatorio = () => {
+    if (!formData.resumoPlantao || formData.resumoPlantao.trim().length < 5) {
+        alert("⚠️ O Resumo do Plantão é OBRIGATÓRIO! Por favor, preencha-o antes de guardar.");
+        // Faz a página rolar automaticamente para a secção do resumo
+        document.getElementById('resumo-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return false;
+    }
+    return true;
+  };
+
   const handleSalvarApenas = async () => {
+    if (!validarRelatorio()) return; // Impede salvar sem resumo
     setLoading(true);
     const { error } = await salvarNoSupabase();
     setLoading(false);
@@ -460,6 +474,7 @@ export default function Home() {
   };
 
   const handleSaveAndSend = async () => {
+    if (!validarRelatorio()) return; // Impede salvar sem resumo
     setLoading(true);
     const { error } = await salvarNoSupabase();
     setLoading(false);
@@ -481,7 +496,7 @@ export default function Home() {
       {/* HEADER BAR */}
       <div className="glass-panel sticky top-0 z-40 px-6 py-4 flex flex-wrap justify-between items-center gap-4 transition-all border-b border-gray-200 bg-white/80 backdrop-blur-md">
         <div className="flex items-center gap-3 overflow-hidden group cursor-pointer" onClick={() => { if(userName) setView('select-plantao'); }}>
-            <span className="text-2xl group-hover:scale-110 transition-transform bg-blue-100 p-2 rounded-xl">🛡️</span>
+            <span className="text-2xl group-hover:scale-110 transition-transform bg-blue-100 p-2 rounded-xl shadow-sm">🛡️</span>
             <h1 className="font-black text-gray-800 text-lg sm:text-xl tracking-tight">CSIPRC Segurança</h1>
         </div>
         
@@ -490,14 +505,14 @@ export default function Home() {
 
               {/* AVISO DO AUTO-SAVE */}
               {view === 'form' && (
-                  <div className="flex items-center gap-2 text-xs sm:text-sm font-bold bg-white/60 px-3 py-1.5 rounded-full border border-gray-200">
+                  <div className="flex items-center gap-2 text-xs sm:text-sm font-bold bg-white/60 px-3 py-1.5 rounded-full border border-gray-200 shadow-sm">
                       {isAutoSaving ? (
                           <span className="text-blue-500 animate-pulse flex items-center gap-2">
                               <span className="animate-spin">⏳</span> A guardar na nuvem...
                           </span>
                       ) : (
-                          <span className="text-green-600 flex items-center gap-2">
-                              <span>✅</span> Guardado na nuvem
+                          <span className="text-green-600 flex items-center gap-2 transition-all">
+                              <span>✅</span> {formData.id ? 'Guardado na nuvem' : 'Aguardando digitação...'}
                           </span>
                       )}
                   </div>
@@ -637,7 +652,7 @@ export default function Home() {
 
           {view === 'select-plantao' && userName && (
               <div className="flex flex-col items-center justify-center min-h-[75vh] px-6 py-12 animate-fade-in-up">
-                  <div className="inline-block bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-sm font-bold tracking-wide mb-6">
+                  <div className="inline-block bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-sm font-bold tracking-wide mb-6 shadow-sm">
                     MÓDULO DE REGISTO
                   </div>
                   <h2 className="text-4xl md:text-5xl font-black text-gray-800 mb-4 text-center tracking-tight">Qual o Plantão de Hoje?</h2>
@@ -654,27 +669,27 @@ export default function Home() {
                   )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-3xl">
-                      <button onClick={() => handleSelectPlantao('ALFA')} className="relative bg-gradient-to-br from-blue-500 to-blue-700 text-white p-10 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-blue-500/30 hover:-translate-y-2 transition-all duration-300 group overflow-hidden">
+                      <button onClick={() => handleSelectPlantao('ALFA')} className="relative bg-gradient-to-br from-blue-500 to-blue-700 text-white p-10 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-blue-500/30 hover:-translate-y-2 transition-all duration-300 group overflow-hidden border border-blue-400">
                           <div className="absolute -top-10 -right-10 w-40 h-40 bg-white opacity-10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
                           <div className="flex flex-col items-center gap-3 relative z-10">
                             <span className="text-6xl group-hover:scale-110 transition-transform duration-300 drop-shadow-md">☀️</span>
                             <span className="text-4xl font-black tracking-wide mt-2">ALFA</span>
-                            <span className="bg-white/20 px-4 py-1 rounded-full text-sm font-bold tracking-widest uppercase backdrop-blur-sm">Diurno</span>
+                            <span className="bg-white/20 px-4 py-1 rounded-full text-sm font-bold tracking-widest uppercase backdrop-blur-sm border border-white/30">Diurno</span>
                           </div>
                       </button>
                       
-                      <button onClick={() => handleSelectPlantao('BETA')} className="relative bg-gradient-to-br from-emerald-500 to-teal-700 text-white p-10 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-emerald-500/30 hover:-translate-y-2 transition-all duration-300 group overflow-hidden">
+                      <button onClick={() => handleSelectPlantao('BETA')} className="relative bg-gradient-to-br from-emerald-500 to-teal-700 text-white p-10 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-emerald-500/30 hover:-translate-y-2 transition-all duration-300 group overflow-hidden border border-emerald-400">
                           <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white opacity-10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
                           <div className="flex flex-col items-center gap-3 relative z-10">
                             <span className="text-6xl group-hover:scale-110 transition-transform duration-300 drop-shadow-md">🌿</span>
                             <span className="text-4xl font-black tracking-wide mt-2">BETA</span>
-                            <span className="bg-white/20 px-4 py-1 rounded-full text-sm font-bold tracking-widest uppercase backdrop-blur-sm">Diurno</span>
+                            <span className="bg-white/20 px-4 py-1 rounded-full text-sm font-bold tracking-widest uppercase backdrop-blur-sm border border-white/30">Diurno</span>
                           </div>
                       </button>
                   </div>
                   
-                  <button onClick={() => { setFormData(getTemplateVazio()); setView('form'); window.scrollTo(0,0); }} className="mt-12 flex items-center gap-2 text-gray-400 hover:text-gray-700 transition-colors font-semibold py-2 px-4 rounded-xl hover:bg-gray-100">
-                      <span>✍️</span> Iniciar relatório em branco
+                  <button onClick={() => { setFormData(getTemplateVazio()); setView('form'); window.scrollTo(0,0); }} className="mt-12 flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-all font-semibold py-3 px-6 rounded-xl hover:bg-gray-100 hover:shadow-sm border border-transparent hover:border-gray-200">
+                      <span className="text-xl">✍️</span> Iniciar relatório em branco
                   </button>
               </div>
           )}
@@ -683,21 +698,23 @@ export default function Home() {
               <form className="p-6 md:p-10 space-y-10 animate-fade-in-up" onSubmit={(e) => e.preventDefault()}>
               
               {formData.id && (
-                  <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-5 rounded-2xl shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl animate-pulse">⚠️</span>
+                  <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border-l-4 border-l-yellow-400 border border-y-yellow-100 border-r-yellow-100 text-yellow-800 p-5 rounded-r-2xl shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="bg-yellow-100 p-3 rounded-full shadow-inner">
+                            <span className="text-2xl animate-pulse">✏️</span>
+                        </div>
                         <div>
-                          <p className="font-black text-yellow-900">MODO DE EDIÇÃO ATIVO</p>
-                          <p className="text-sm opacity-90">As alterações substituirão os dados do relatório existente.</p>
+                          <p className="font-black text-yellow-900 text-lg">MODO DE EDIÇÃO ATIVO</p>
+                          <p className="text-sm opacity-90 font-medium">As alterações substituirão os dados do relatório existente.</p>
                         </div>
                       </div>
-                      <button onClick={() => { if(confirm("Cancelar edição? Todas as alterações não salvas serão perdidas.")) setView('select-plantao'); }} className="bg-white text-yellow-700 px-5 py-2.5 rounded-xl font-bold shadow-sm hover:bg-yellow-100 transition-colors w-full sm:w-auto">Cancelar Edição</button>
+                      <button onClick={() => { if(confirm("Cancelar edição? Todas as alterações não salvas serão perdidas.")) setView('select-plantao'); }} className="bg-white border border-yellow-200 text-yellow-700 px-6 py-2.5 rounded-xl font-bold shadow-sm hover:bg-yellow-100 hover:scale-105 transition-all w-full sm:w-auto">Cancelar Edição</button>
                   </div>
               )}
 
-              <div className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl border border-gray-100">
+              <div className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl border border-gray-100 shadow-sm">
                   <div className="flex items-center gap-4">
-                    <div className="bg-blue-100 p-2 rounded-lg text-blue-600">📅</div>
+                    <div className="bg-blue-100 p-2 rounded-lg text-blue-600 shadow-sm">📅</div>
                     <div>
                       <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">Data do Plantão</label>
                       <input type="text" name="data" value={formData.data} onChange={handleChange} className="w-36 bg-transparent font-black text-gray-800 text-lg outline-none border-b-2 border-transparent focus:border-blue-500 transition-colors" />
@@ -715,28 +732,33 @@ export default function Home() {
                 <AlojamentosSection formData={formData} handleAlojamentoChange={handleAlojamentoChange} totalAtual={totalAtual} />
               </div>
               
-              {/* --- SECÇÃO DO MICROFONE CORRIGIDA E MELHORADA --- */}
-              <section className={`relative mt-12 p-6 rounded-3xl border transition-all duration-300 ${isRecording ? 'bg-blue-100/80 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.3)]' : 'bg-blue-50/50 border-blue-100'}`}>
+              {/* --- SECÇÃO DO MICROFONE CORRIGIDA COM MELHORIA VISUAL --- */}
+              <section id="resumo-section" className={`relative mt-12 p-6 rounded-3xl border transition-all duration-300 ${isRecording ? 'bg-blue-100/80 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.3)]' : 'bg-blue-50/50 border-blue-100 shadow-sm'}`}>
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                       <div className="flex flex-col">
                         <h3 className="flex items-center text-blue-900 font-black text-2xl tracking-tight">
                           <span className="mr-3 bg-blue-600 text-white p-2 rounded-xl text-lg shadow-md shadow-blue-500/30">📝</span> 
                           Resumo do Plantão
+                          <span className="text-red-500 ml-2 text-2xl" title="Campo Obrigatório">*</span>
                         </h3>
-                        {isRecording && (
+                        {isRecording ? (
                           <span className="text-blue-600 font-bold text-sm mt-2 flex items-center gap-2 animate-pulse">
                             <span className="w-2 h-2 rounded-full bg-red-500"></span> A ouvir o seu microfone... fale de forma clara.
+                          </span>
+                        ) : (
+                          <span className="text-gray-500 font-medium text-xs mt-1">
+                            Este campo é obrigatório para guardar o relatório.
                           </span>
                         )}
                       </div>
                       
                       <div className="flex items-center gap-2 w-full sm:w-auto">
                         {formData.resumoPlantao && !isRecording && (
-                           <button type="button" onClick={() => { if(confirm("Deseja apagar todo o resumo?")) setFormData(p => ({...p, resumoPlantao: ''})) }} className="px-4 py-2 text-red-500 hover:bg-red-50 font-bold rounded-xl transition-all text-sm">
+                           <button type="button" onClick={() => { if(confirm("Deseja apagar todo o resumo?")) setFormData(p => ({...p, resumoPlantao: ''})) }} className="px-4 py-2 text-red-500 hover:bg-red-50 font-bold rounded-xl transition-all text-sm border border-transparent hover:border-red-200">
                              Apagar
                            </button>
                         )}
-                        <button type="button" onClick={toggleRecording} className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-black transition-all shadow-sm text-base ${isRecording ? 'bg-red-500 text-white animate-pulse shadow-red-500/40 hover:bg-red-600' : 'bg-white text-blue-700 hover:bg-blue-100 border border-blue-200 hover:scale-105'}`}>
+                        <button type="button" onClick={toggleRecording} className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-black transition-all shadow-sm text-base ${isRecording ? 'bg-red-500 text-white animate-pulse shadow-red-500/40 hover:bg-red-600' : 'bg-white text-blue-700 hover:bg-blue-100 border border-blue-200 hover:scale-105 hover:shadow-md'}`}>
                             {isRecording ? <><span>⏹️</span> Parar Gravação</> : <><span>🎙️</span> Ditar por Voz</>}
                         </button>
                       </div>
@@ -754,7 +776,7 @@ export default function Home() {
 
               <OcorrenciasSection formData={formData} onChange={handleChange} gerenciarArray={gerenciarArray} />
 
-              <section className="bg-gray-50 p-6 rounded-3xl border border-gray-200 mt-12">
+              <section className="bg-gray-50 p-6 rounded-3xl border border-gray-200 mt-12 shadow-sm">
                   <h3 className="flex items-center text-gray-800 font-black text-xl mb-6">
                     <span className="mr-2">📷</span> Galeria de Fotos
                   </h3>
@@ -773,7 +795,7 @@ export default function Home() {
                   </div>
               </section>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-gray-50 p-6 md:p-8 rounded-3xl border border-gray-200 mt-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-gray-50 p-6 md:p-8 rounded-3xl border border-gray-200 mt-8 shadow-sm">
                   <div className="space-y-4">
                       <label className="text-xs font-black text-gray-400 uppercase tracking-widest block">Supervisor Diurno</label>
                       <input name="assinaturaDiurno" value={formData.assinaturaDiurno} onChange={handleChange} placeholder="Nome do Supervisor" className="w-full bg-white border border-gray-200 p-4 rounded-xl text-gray-800 font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm" />
@@ -790,7 +812,7 @@ export default function Home() {
                   </div>
               </div>
               
-              <div className="mt-12 p-6 bg-white rounded-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.05)] border border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="mt-12 p-6 bg-white rounded-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.05)] border border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4 sticky bottom-4 z-30">
                   <div className="flex gap-4">
                       <button type="button" onClick={() => gerarWord(formData)} className="flex-1 bg-blue-50 text-blue-700 font-bold py-4 rounded-2xl hover:bg-blue-100 hover:-translate-y-1 transition-all border border-blue-100 flex items-center justify-center gap-2">
                         <span className="text-xl">📄</span> Gerar Word
