@@ -34,7 +34,7 @@ const TEMPO_AVISO = 4.5 * 60 * 1000;
 // --- DADOS PADRÃO ---
 const getBaseData = (): RelatorioData => ({
     data: new Date().toLocaleDateString('pt-BR'),
-    coordenador: '', // <-- Nome fixo removido aqui
+    coordenador: '', 
     supervisor: '', educadores: '', apoio: '', cozinha: '', servicosGerais: '', portaria: '', plantao: '',
     tonfas: '08', algemas: '03', chavesAcesso: '30', chavesAlgemas: '02', escudos: '02', lanternas: '02', celular: '01', radioCelular: '0', radioHT: '04', cadeados: '30', pendrives: '02',
     alojamentos: {
@@ -70,7 +70,7 @@ export default function Home() {
   const [session, setSession] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [isAutoSaving, setIsAutoSaving] = useState(false); // Estado para o Auto-Save
+  const [isAutoSaving, setIsAutoSaving] = useState(false); 
   
   const [view, setView] = useState<'select-plantao' | 'form' | 'history' | 'admin' | 'manage-team' | 'set-name'>('select-plantao');
   const [userName, setUserName] = useState<string>(''); 
@@ -97,7 +97,7 @@ export default function Home() {
     if (data) {
       setHistorico(data.map((item: any) => ({
         ...item, data: item.data_plantao, apoio: item.apoio_geral || item.servicos_gerais || '', 
-        coordenador: item.coordenador || '', // <-- Nome fixo removido aqui também
+        coordenador: item.coordenador || '', 
         cozinha: item.equipe_cozinha || '',
         servicosGerais: item.equipe_servicos_gerais || '', portaria: item.equipe_portaria || '',
         resumoPlantao: item.resumo_plantao, assinaturaDiurno: item.plantao_diurno, assinaturaNoturno: item.plantao_noturno, 
@@ -119,7 +119,6 @@ export default function Home() {
     if (session && userName) fetchHistory();
   }, [session, userName, fetchHistory]);
 
-  // Efeito para carregar as equipas salvas na Nuvem (Supabase) e no LocalStorage
   useEffect(() => {
     const carregarEquipes = async () => {
       try {
@@ -131,10 +130,8 @@ export default function Home() {
 
         if (!error && data && data.valor) {
           setEquipes(data.valor);
-          // Opcional: Atualizar cache local como backup
           localStorage.setItem('equipes_cadastradas', JSON.stringify(data.valor));
         } else {
-          // Fallback para o localStorage se a internet falhar
           const equipesSalvas = localStorage.getItem('equipes_cadastradas');
           if (equipesSalvas) setEquipes(JSON.parse(equipesSalvas));
         }
@@ -149,14 +146,12 @@ export default function Home() {
   const handleSalvarEquipes = async () => {
       setLoading(true);
       try {
-          // Salva na nuvem usando upsert (atualiza se existir, insere se não existir)
           const { error } = await supabase
             .from('configuracoes')
             .upsert({ chave: 'equipes_padrao', valor: equipes }, { onConflict: 'chave' });
 
           if (error) throw error;
 
-          // Atualiza também o cache local
           localStorage.setItem('equipes_cadastradas', JSON.stringify(equipes));
           
           alert('✅ Equipas atualizadas e sincronizadas na nuvem com sucesso!');
@@ -177,7 +172,7 @@ export default function Home() {
       setFormData({
           ...base,
           plantao: tipo === 'ALFA' ? 'Alfa Diurno' : 'Beta Diurno',
-          coordenador: ultimo?.coordenador || base.coordenador, // <-- Agora herda o coordenador do último relatório
+          coordenador: ultimo?.coordenador || base.coordenador, 
           supervisor: equipe.supervisor || '',
           educadores: equipe.educadores || '',
           portaria: equipe.portaria || '',
@@ -330,28 +325,57 @@ export default function Home() {
       }
   };
 
+  // --- FUNÇÃO DO MICROFONE CORRIGIDA ---
   const toggleRecording = () => {
     if (isRecording) {
       if (recognitionRef.current) recognitionRef.current.stop();
       setIsRecording(false);
       return;
     }
+
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return alert("Seu navegador não suporta reconhecimento de voz.");
+    if (!SpeechRecognition) return alert("O seu navegador não suporta reconhecimento de voz. Tente usar o Google Chrome.");
     
     const recognition = new SpeechRecognition();
     recognition.lang = 'pt-BR';
     recognition.continuous = true;
-    recognition.interimResults = true;
-    baseTextRef.current = formData.resumoPlantao;
+    recognition.interimResults = true; 
+    
+    baseTextRef.current = formData.resumoPlantao || '';
 
     recognition.onresult = (event: any) => {
-      let currentSessionTranscript = '';
-      for (let i = 0; i < event.results.length; ++i) currentSessionTranscript += event.results[i][0].transcript;
-      setFormData(prev => ({ ...prev, resumoPlantao: (baseTextRef.current + ' ' + currentSessionTranscript).trim() }));
+      let finalTranscript = '';
+      let interimTranscript = '';
+
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
+      }
+
+      if (finalTranscript) {
+        baseTextRef.current = (baseTextRef.current + ' ' + finalTranscript).trim();
+      }
+
+      setFormData(prev => ({ 
+        ...prev, 
+        resumoPlantao: (baseTextRef.current + ' ' + interimTranscript).trim() 
+      }));
     };
-    recognition.onerror = () => setIsRecording(false);
-    recognition.onend = () => setIsRecording(false);
+
+    recognition.onerror = (event: any) => {
+      console.error("Erro no áudio:", event.error);
+      if (event.error !== 'no-speech') {
+        setIsRecording(false);
+      }
+    };
+    
+    recognition.onend = () => {
+      setIsRecording(false);
+    };
+
     recognition.start();
     recognitionRef.current = recognition;
     setIsRecording(true);
@@ -408,7 +432,6 @@ export default function Home() {
     return await supabase.from('relatorios').insert([payload]).select();
   };
 
-  // --- EFEITO: Salvamento Automático em Nuvem (Auto-Save) ---
   useEffect(() => {
     if (view !== 'form') return;
     if (!formData.plantao) return;
@@ -446,7 +469,6 @@ export default function Home() {
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`, '_blank');
   };
 
-  // --- Renderização ---
   if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] font-bold text-gray-900">A carregar...</div>;
   if (!session) return <LoginForm onLogin={handleLogin} loading={loading} />;
 
@@ -693,17 +715,41 @@ export default function Home() {
                 <AlojamentosSection formData={formData} handleAlojamentoChange={handleAlojamentoChange} totalAtual={totalAtual} />
               </div>
               
-              <section className="relative mt-12 bg-blue-50/50 p-6 rounded-3xl border border-blue-100">
+              {/* --- SECÇÃO DO MICROFONE CORRIGIDA E MELHORADA --- */}
+              <section className={`relative mt-12 p-6 rounded-3xl border transition-all duration-300 ${isRecording ? 'bg-blue-100/80 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.3)]' : 'bg-blue-50/50 border-blue-100'}`}>
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-                      <h3 className="flex items-center text-blue-900 font-black text-2xl tracking-tight">
-                        <span className="mr-3 bg-blue-600 text-white p-2 rounded-xl text-lg shadow-md shadow-blue-500/30">📝</span> 
-                        Resumo do Plantão
-                      </h3>
-                      <button type="button" onClick={toggleRecording} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all shadow-sm ${isRecording ? 'bg-red-500 text-white animate-pulse shadow-red-500/40' : 'bg-white text-blue-700 hover:bg-blue-100 border border-blue-200'}`}>
-                          {isRecording ? <><span>⏹️</span> A gravar...</> : <><span>🎙️</span> Ditar por Voz</>}
-                      </button>
+                      <div className="flex flex-col">
+                        <h3 className="flex items-center text-blue-900 font-black text-2xl tracking-tight">
+                          <span className="mr-3 bg-blue-600 text-white p-2 rounded-xl text-lg shadow-md shadow-blue-500/30">📝</span> 
+                          Resumo do Plantão
+                        </h3>
+                        {isRecording && (
+                          <span className="text-blue-600 font-bold text-sm mt-2 flex items-center gap-2 animate-pulse">
+                            <span className="w-2 h-2 rounded-full bg-red-500"></span> A ouvir o seu microfone... fale de forma clara.
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        {formData.resumoPlantao && !isRecording && (
+                           <button type="button" onClick={() => { if(confirm("Deseja apagar todo o resumo?")) setFormData(p => ({...p, resumoPlantao: ''})) }} className="px-4 py-2 text-red-500 hover:bg-red-50 font-bold rounded-xl transition-all text-sm">
+                             Apagar
+                           </button>
+                        )}
+                        <button type="button" onClick={toggleRecording} className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-black transition-all shadow-sm text-base ${isRecording ? 'bg-red-500 text-white animate-pulse shadow-red-500/40 hover:bg-red-600' : 'bg-white text-blue-700 hover:bg-blue-100 border border-blue-200 hover:scale-105'}`}>
+                            {isRecording ? <><span>⏹️</span> Parar Gravação</> : <><span>🎙️</span> Ditar por Voz</>}
+                        </button>
+                      </div>
                   </div>
-                  <textarea name="resumoPlantao" value={formData.resumoPlantao} placeholder="Fale ou digite aqui os detalhes principais e observações gerais do plantão..." onChange={handleChange} className="w-full bg-white border border-gray-200 p-5 rounded-2xl h-48 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-400 transition-all text-gray-800 text-lg shadow-inner resize-none"></textarea>
+                  
+                  <textarea 
+                    name="resumoPlantao" 
+                    value={formData.resumoPlantao} 
+                    placeholder="Fale no microfone ou digite aqui os detalhes principais, ocorrências de rotina e observações gerais do plantão..." 
+                    onChange={handleChange} 
+                    disabled={isRecording}
+                    className={`w-full bg-white border p-5 rounded-2xl h-64 outline-none transition-all text-gray-800 text-lg shadow-inner resize-y ${isRecording ? 'border-blue-400 ring-4 ring-blue-100/50 cursor-not-allowed opacity-90' : 'border-gray-200 focus:ring-4 focus:ring-blue-100 focus:border-blue-400'}`}
+                  ></textarea>
               </section>
 
               <OcorrenciasSection formData={formData} onChange={handleChange} gerenciarArray={gerenciarArray} />
