@@ -505,17 +505,30 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans pb-12 selection:bg-blue-200">
       
-      {/* HEADER BAR COM GLASSMORPHISM */}
-      <div className="sticky top-0 z-40 px-6 py-4 flex flex-wrap justify-between items-center gap-4 transition-all border-b border-white/40 bg-white/70 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.05)]">
+      {/* HEADER BAR COM O SEU CRÉDITO VISUAL */}
+      <div className="sticky top-0 z-40 px-6 py-4 flex flex-wrap justify-between items-center gap-4 transition-all border-b border-white/40 bg-white/80 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.06)]">
         <div className="flex items-center gap-3 overflow-hidden group cursor-pointer" onClick={() => { if(userName) setView('select-plantao'); }}>
-            <div className="bg-gradient-to-br from-blue-500 to-blue-700 text-white p-2 rounded-xl shadow-lg group-hover:scale-105 transition-all">
-                <span className="text-2xl drop-shadow-md">🛡️</span>
+            <div className="bg-gradient-to-br from-blue-500 to-blue-700 text-white p-2.5 sm:p-3 rounded-2xl shadow-lg group-hover:scale-105 transition-all duration-300 group-hover:shadow-blue-500/30">
+                <span className="text-2xl sm:text-3xl drop-shadow-md">🛡️</span>
             </div>
-            <h1 className="font-black text-transparent bg-clip-text bg-gradient-to-r from-gray-800 to-gray-600 text-lg sm:text-2xl tracking-tight">CSIPRC Segurança</h1>
+            
+            <div className="flex flex-col justify-center">
+                <h1 className="font-black text-transparent bg-clip-text bg-gradient-to-r from-gray-800 to-gray-600 text-xl sm:text-2xl tracking-tight leading-none mb-1.5">
+                    CSIPRC Segurança
+                </h1>
+                
+                {/* --- A SUA ASSINATURA --- */}
+                <div className="inline-flex items-center bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100/80 rounded-full px-2.5 py-0.5 w-fit shadow-sm">
+                    <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 tracking-wider">Desenvolvido pelo Socioeducador</span>
+                    <span className="text-[10px] sm:text-[11px] font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 ml-1.5">
+                        Júnior Santos
+                    </span>
+                </div>
+            </div>
         </div>
         
         {userName && (
-          <div className="flex items-center gap-3 flex-wrap justify-end flex-1">
+          <div className="flex items-center gap-3 flex-wrap justify-end flex-1 mt-2 sm:mt-0">
 
               {/* AVISO DO AUTO-SAVE */}
               {view === 'form' && (
