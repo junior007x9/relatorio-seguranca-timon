@@ -336,7 +336,7 @@ export default function Home() {
       }
   };
 
-  // --- LÓGICA DO MICROFONE CORRIGIDA E À PROVA DE BUGS DE ANDROID ---
+  // --- LÓGICA DO MICROFONE CORRIGIDA COM EVENT.RESULTINDEX E BASETEXTREF ---
   const toggleRecording = () => {
     if (isRecording) {
       if (recognitionRef.current) recognitionRef.current.stop();
@@ -352,28 +352,31 @@ export default function Home() {
     recognition.continuous = true;
     recognition.interimResults = true; 
     
-    // Guarda o que já estava escrito para não perder nada
+    // 1. Guardamos o texto base que já estava na caixa de texto
     baseTextRef.current = formData.resumoPlantao || '';
 
     recognition.onresult = (event: any) => {
-      let currentSessionText = '';
+      let finalTranscript = '';
+      let interimTranscript = '';
 
-      // O SEGREDO ESTÁ AQUI: Navegadores de telemóvel bugam se usarmos event.resultIndex.
-      // Então, percorremos SEMPRE desde o 0 para pegar toda a frase que ele está a construir AGORA.
-      for (let i = 0; i < event.results.length; ++i) {
-        currentSessionText += event.results[i][0].transcript;
+      // 2. Percorremos SOMENTE as palavras novas desta sessão (ignora o histórico do navegador para evitar repetições)
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
       }
 
-      // Limpa os espaços iniciais/finais e garante que há um espaço separando o texto velho do novo
-      let prefixo = baseTextRef.current;
-      if (prefixo && currentSessionText) {
-         prefixo = prefixo.trim() + ' ';
+      // 3. Se algo foi confirmado como final, somamos ao nosso texto base
+      if (finalTranscript) {
+        baseTextRef.current = (baseTextRef.current + ' ' + finalTranscript).trim();
       }
 
-      // Define o resumo misturando o prefixo antigo com o áudio gravado na sessão atual
+      // 4. Atualizamos o formulário com o texto base + o palpite (interim)
       setFormData(prev => ({ 
         ...prev, 
-        resumoPlantao: prefixo + currentSessionText.trimStart()
+        resumoPlantao: (baseTextRef.current + ' ' + interimTranscript).trim() 
       }));
     };
 
