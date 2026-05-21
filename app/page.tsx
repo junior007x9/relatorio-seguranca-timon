@@ -89,6 +89,8 @@ export default function Home() {
   const logoutTimerRef = useRef<NodeJS.Timeout | null>(null);
   const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
   const recognitionRef = useRef<any>(null);
+  
+  // Guardará o texto base do resumo ANTES de clicar em gravar
   const baseTextRef = useRef<string>(''); 
 
   const fetchHistory = useCallback(async () => {
@@ -334,6 +336,7 @@ export default function Home() {
       }
   };
 
+  // --- LÓGICA DO MICROFONE CORRIGIDA E À PROVA DE BUGS DE ANDROID ---
   const toggleRecording = () => {
     if (isRecording) {
       if (recognitionRef.current) recognitionRef.current.stop();
@@ -349,27 +352,28 @@ export default function Home() {
     recognition.continuous = true;
     recognition.interimResults = true; 
     
+    // Guarda o que já estava escrito para não perder nada
     baseTextRef.current = formData.resumoPlantao || '';
 
     recognition.onresult = (event: any) => {
-      let finalTranscript = '';
-      let interimTranscript = '';
+      let currentSessionText = '';
 
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
-        } else {
-          interimTranscript += event.results[i][0].transcript;
-        }
+      // O SEGREDO ESTÁ AQUI: Navegadores de telemóvel bugam se usarmos event.resultIndex.
+      // Então, percorremos SEMPRE desde o 0 para pegar toda a frase que ele está a construir AGORA.
+      for (let i = 0; i < event.results.length; ++i) {
+        currentSessionText += event.results[i][0].transcript;
       }
 
-      if (finalTranscript) {
-        baseTextRef.current = (baseTextRef.current + ' ' + finalTranscript).trim();
+      // Limpa os espaços iniciais/finais e garante que há um espaço separando o texto velho do novo
+      let prefixo = baseTextRef.current;
+      if (prefixo && currentSessionText) {
+         prefixo = prefixo.trim() + ' ';
       }
 
+      // Define o resumo misturando o prefixo antigo com o áudio gravado na sessão atual
       setFormData(prev => ({ 
         ...prev, 
-        resumoPlantao: (baseTextRef.current + ' ' + interimTranscript).trim() 
+        resumoPlantao: prefixo + currentSessionText.trimStart()
       }));
     };
 
@@ -519,8 +523,8 @@ export default function Home() {
                 
                 {/* --- A SUA ASSINATURA --- */}
                 <div className="inline-flex items-center bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100/80 rounded-full px-2.5 py-0.5 w-fit shadow-sm">
-                    <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 tracking-wider">Desenvolvido pelo Socioeducador</span>
-                    <span className="text-[10px] sm:text-[11px] font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 ml-1.5">
+                    <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 tracking-wider uppercase">Desenvolvido pelo Socioeducador</span>
+                    <span className="text-[10px] sm:text-[11px] font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 ml-1.5 uppercase tracking-wide">
                         Júnior Santos
                     </span>
                 </div>
