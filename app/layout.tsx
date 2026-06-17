@@ -1,3 +1,4 @@
+// app/layout.tsx
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
@@ -22,11 +23,15 @@ export const viewport: Viewport = {
   maximumScale: 1,
 };
 
-// Configuração para instalar no celular
+// Configuração para instalar no celular com os ÍCONES FORÇADOS
 export const metadata: Metadata = {
   title: "CSIPRC Segurança",
   description: "Sistema de Relatórios de Segurança",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/logo2.png",   // Força o ícone padrão
+    apple: "/logo2.png",  // OBRIGATÓRIO para o iPhone (Safari) puxar a imagem
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
