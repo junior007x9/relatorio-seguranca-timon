@@ -52,9 +52,9 @@ const getBaseData = (): any => ({
     },
     resumoPlantao: '', assinaturaDiurno: '', assinaturaNoturno: '', assinaturaDiurnoImg: '', assinaturaNoturnoImg: '', fotos: [],
     
-    // --- CAMPOS NOVOS (INTELIGÊNCIA DE SERVIDORES) ---
-    temVisita: false, responsaveisVisitas: [], responsaveisVistoria: [],
-    // ---------------------------------------------------
+    // --- CAMPOS INTELIGENTES E HORÁRIO ---
+    temVisita: false, responsaveisVisitas: [], responsaveisVistoria: [], horarioVistoria: '',
+    // -------------------------------------
 
     temSaida: false, saidas: [], saidaAdolescente: '', saidaEducador: '', saidaHorario: '',
     temAdmissao: false, admissoes: [], temDesligamento: false, desligamentos: [],
@@ -115,11 +115,10 @@ export default function Home() {
         assinaturaDiurnoImg: item.assinatura_diurno_img || '', assinaturaNoturnoImg: item.assinatura_noturno_img || '',
         fotos: item.fotos || [], alojamentos: item.alojamentos || {},
         
-        // --- CAMPOS NOVOS DA CARGA ---
         temVisita: item.tem_visita || false, 
         responsaveisVistoria: item.responsaveis_vistoria || [], 
         responsaveisVisitas: item.responsaveis_visitas || [],
-        // -----------------------------
+        horarioVistoria: item.horario_vistoria || '', // <-- Lendo o horário do Supabase
 
         temSaida: item.tem_saida || false, saidas: item.saidas || [], saidaAdolescente: item.saida_adolescente || '', saidaEducador: item.saida_educador || '', saidaHorario: item.saida_horario || '',
         temAdmissao: item.tem_admissao || false, admissoes: item.admissoes || [],
@@ -457,11 +456,10 @@ export default function Home() {
       alojamentos: formData.alojamentos, resumo_plantao: formData.resumoPlantao, plantao_diurno: formData.assinaturaDiurno, plantao_noturno: formData.assinaturaNoturno,
       assinatura_diurno_img: formData.assinaturaDiurnoImg, assinatura_noturno_img: formData.assinaturaNoturnoImg, fotos: formData.fotos,
       
-      // --- SALVANDO DADOS NOVOS NO SUPABASE ---
       tem_visita: formData.temVisita,
       responsaveis_vistoria: formData.responsaveisVistoria,
       responsaveis_visitas: formData.responsaveisVisitas,
-      // ----------------------------------------
+      horario_vistoria: formData.horarioVistoria, // <-- Salvando o horário no Supabase
 
       tem_saida: formData.temSaida, saidas: formData.saidas,
       tem_admissao: formData.temAdmissao, admissoes: formData.admissoes,
@@ -634,7 +632,6 @@ export default function Home() {
       <div className="max-w-5xl mx-auto mt-8 px-4 sm:px-0">
         <div className="bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-3xl overflow-hidden border border-gray-100 min-h-[80vh]">
           
-          {/* TELA DE IDENTIFICAÇÃO DO NOME */}
           {view === 'set-name' && (
             <div className="flex flex-col items-center justify-center min-h-[75vh] px-6 py-12 animate-fade-in-up">
               <div className="text-6xl mb-6">👋</div>
@@ -663,13 +660,10 @@ export default function Home() {
             </div>
           )}
 
-          {/* PAINEL DE LOGS EXCLUSIVO PARA ADMIN */}
           {view === 'logs' && userName && isUserAdmin && <LogsPanel />}
 
-          {/* PAINEL DE ADMIN GERAL */}
           {view === 'admin' && userName && isUserAdmin && <AdminPanel onRegister={handleRegisterUser} loading={loading} />}
 
-          {/* HISTÓRICO DE RELATÓRIOS */}
           {view === 'history' && userName && (
               <HistoryView 
                   historico={historico} loading={loading} selectedReport={selectedReport}
@@ -679,7 +673,6 @@ export default function Home() {
               />
           )}
 
-          {/* GERENCIAMENTO DE EQUIPE */}
           {view === 'manage-team' && userName && isUserAdmin && (
             <div className="p-8 md:p-12 animate-fade-in-up">
                 <div className="mb-8">
@@ -735,7 +728,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* TELA INICIAL (SELEÇÃO DE PLANTÃO) */}
           {view === 'select-plantao' && userName && (
               <div className="flex flex-col items-center justify-center min-h-[75vh] px-6 py-12 animate-fade-in-up">
                   <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-100 px-5 py-2 rounded-full text-xs sm:text-sm font-black tracking-widest mb-8 shadow-sm">
@@ -790,7 +782,6 @@ export default function Home() {
               </div>
           )}
 
-          {/* FORMULÁRIO DE REGISTRO */}
           {view === 'form' && userName && (
               <form className="p-6 md:p-10 space-y-10 animate-fade-in-up" onSubmit={(e) => e.preventDefault()}>
               
@@ -834,7 +825,7 @@ export default function Home() {
                    formData={formData} 
                    handleAlojamentoChange={handleAlojamentoChange} 
                    totalAtual={totalAtual} 
-                   setFormData={setFormData} // <-- INJEÇÃO DO NOVO SISTEMA
+                   setFormData={setFormData} 
                 />
               </div>
               
@@ -890,7 +881,7 @@ export default function Home() {
                   formData={formData} 
                   onChange={handleChange} 
                   gerenciarArray={gerenciarArray} 
-                  setFormData={setFormData} // <-- INJEÇÃO DO NOVO SISTEMA
+                  setFormData={setFormData} 
               />
 
               <section className="bg-gray-50 p-8 rounded-3xl border border-gray-200 mt-12 shadow-inner">

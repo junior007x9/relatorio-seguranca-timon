@@ -3,13 +3,13 @@
 
 import { RelatorioData } from '@/types';
 import { registrarLog } from '@/lib/logger';
-import SmartServerSelect from '../UI/SmartServerSelect'; // <-- IMPORTAÇÃO DO NOVO COMPONENTE
+import SmartServerSelect from '../UI/SmartServerSelect';
 
 interface Props {
   formData: any;
   handleAlojamentoChange: (id: string, field: 'qtd' | 'nomes', value: string) => void;
   totalAtual: number;
-  setFormData: React.Dispatch<React.SetStateAction<any>>; // <-- NOVA PROP
+  setFormData: React.Dispatch<React.SetStateAction<any>>; 
 }
 
 export default function AlojamentosSection({ formData, handleAlojamentoChange, totalAtual, setFormData }: Props) {
@@ -68,14 +68,31 @@ export default function AlojamentosSection({ formData, handleAlojamentoChange, t
         ))}
       </div>
 
-      {/* COMPONENTE INTELIGENTE PARA VISTORIA */}
-      <div className="mt-8 pt-6 border-t border-gray-100 bg-teal-50/30 p-4 rounded-2xl">
-        <SmartServerSelect 
-          label="🔎 Quem fez a VISTORIA nos Alojamentos hoje?" 
-          campo="responsaveisVistoria" 
-          formData={formData} 
-          setFormData={setFormData} 
-        />
+      {/* COMPONENTE INTELIGENTE PARA VISTORIA E HORÁRIO */}
+      <div className="mt-8 pt-6 border-t border-gray-100 bg-teal-50/30 p-6 rounded-2xl flex flex-col md:flex-row gap-6 items-start">
+        <div className="flex-1 w-full">
+          <SmartServerSelect 
+            label="🔎 Quem fez a VISTORIA nos Alojamentos hoje?" 
+            campo="responsaveisVistoria" 
+            formData={formData} 
+            setFormData={setFormData} 
+          />
+        </div>
+        
+        {/* NOVO CAMPO: HORÁRIO DA VISTORIA */}
+        <div className="w-full md:w-auto bg-white p-5 rounded-2xl border border-teal-100 shadow-sm md:mt-[1.5rem]">
+           <label className="block text-sm font-black text-gray-800 mb-3">⏰ Horário da Vistoria</label>
+           <input
+             type="time"
+             value={formData.horarioVistoria || ''}
+             onChange={(e) => setFormData((prev: any) => ({ ...prev, horarioVistoria: e.target.value }))}
+             onBlur={(e) => {
+                 const userName = typeof window !== "undefined" ? localStorage.getItem("usuarioAtual") || "Usuário" : "Usuário";
+                 if (e.target.value) registrarLog(userName, 'Alojamentos', `Definiu o horário da vistoria para: ${e.target.value}`);
+             }}
+             className="w-full sm:w-40 bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-teal-500 transition-all font-bold text-gray-700"
+           />
+        </div>
       </div>
     </section>
   );

@@ -4,13 +4,13 @@
 import { RelatorioData } from '@/types';
 import { toast } from 'sonner';
 import { registrarLog } from '@/lib/logger';
-import SmartServerSelect from '../UI/SmartServerSelect'; // <-- IMPORTAÇÃO DO NOVO COMPONENTE
+import SmartServerSelect from '../UI/SmartServerSelect'; 
 
 interface Props {
   formData: any;
   onChange: (e: any) => void;
   gerenciarArray: (campo: string, index: number, field?: string, value?: string, remover?: boolean, adicionar?: boolean, novoItem?: any) => void;
-  setFormData: React.Dispatch<React.SetStateAction<any>>; // <-- NOVA PROP
+  setFormData: React.Dispatch<React.SetStateAction<any>>; 
 }
 
 export default function OcorrenciasSection({ formData, onChange, gerenciarArray, setFormData }: Props) {
@@ -40,7 +40,7 @@ export default function OcorrenciasSection({ formData, onChange, gerenciarArray,
   return (
     <div className="space-y-6 mt-8">
 
-      {/* CARD: VISITAS (NOVO CARD INTELIGENTE) */}
+      {/* CARD: VISITAS */}
       <section className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm transition-all hover:shadow-md">
         <label className="flex items-center gap-3 cursor-pointer group w-fit">
           <input 
@@ -50,7 +50,7 @@ export default function OcorrenciasSection({ formData, onChange, gerenciarArray,
             onChange={(e) => handleToggleCheckbox(e, 'Visitas de Familiares')} 
             className="w-5 h-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer" 
           />
-          <span className="font-black text-gray-800 text-lg group-hover:text-indigo-600 transition-colors">👨‍👩‍👧 Houve Visitas (Sábado/Domingo)?</span>
+          <span className="font-black text-gray-800 text-lg group-hover:text-indigo-600 transition-colors">👨‍👩‍👧 Houve Visitas (Sábado)?</span>
         </label>
 
         {formData.temVisita && (
