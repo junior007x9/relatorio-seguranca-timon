@@ -2,6 +2,7 @@
 'use client';
 
 import { RelatorioData } from '@/types';
+import { registrarLog } from '@/lib/logger';
 
 interface Props {
   formData: RelatorioData;
@@ -10,15 +11,27 @@ interface Props {
 }
 
 export default function AlojamentosSection({ formData, handleAlojamentoChange, totalAtual }: Props) {
+  
+  // Intercepta a saída do campo (onBlur) para salvar o log silenciosamente sem spam visual
+  const handleBlur = (id: string, field: 'qtd' | 'nomes', value: string) => {
+    const userName = typeof window !== "undefined" ? localStorage.getItem("usuarioAtual") || "Usuário" : "Usuário";
+    const nomeCampo = field === 'qtd' ? 'a quantidade' : 'os nomes';
+    
+    // Só registra no log de auditoria se houver algum valor preenchido
+    if (value.trim() !== '') {
+        registrarLog(userName, 'Alojamentos', `Atualizou ${nomeCampo} do Alojamento #${id} para: ${value}`);
+    }
+  };
+
   return (
-    <section className="bg-white p-6 md:p-8 rounded-3xl border border-gray-100 shadow-sm relative mt-10">
+    <section className="bg-white p-6 md:p-8 rounded-3xl border border-gray-100 shadow-sm relative mt-10 transition-all hover:shadow-md">
       <div className="absolute -top-4 left-6 bg-teal-600 text-white px-4 py-1 rounded-full text-sm font-bold shadow-md tracking-wide flex items-center gap-2">
         <span>🛏️</span> CONTROLE DE ALOJAMENTOS
       </div>
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-4 mb-6 pb-4 border-b border-gray-100">
         <p className="text-gray-500 text-sm">Registe a quantidade e os nomes dos adolescentes em cada quarto.</p>
-        <div className="bg-teal-50 text-teal-800 px-4 py-2 rounded-xl font-black text-lg border border-teal-100 shadow-inner flex items-center gap-2">
+        <div className="bg-teal-50 text-teal-800 px-4 py-2 rounded-xl font-black text-lg border border-teal-100 shadow-inner flex items-center gap-2 transition-all">
           Total de Adolescentes: <span className="bg-white px-3 py-1 rounded-lg text-teal-600 shadow-sm">{totalAtual}</span>
         </div>
       </div>
@@ -37,7 +50,8 @@ export default function AlojamentosSection({ formData, handleAlojamentoChange, t
                   min="0"
                   value={dados.qtd}
                   onChange={(e) => handleAlojamentoChange(id, 'qtd', e.target.value)}
-                  className="w-16 bg-white border border-gray-300 p-1.5 rounded-lg text-center font-bold text-gray-800 outline-none focus:border-teal-500 transition-colors shadow-sm"
+                  onBlur={(e) => handleBlur(id, 'qtd', e.target.value)} // <-- Injeção do Log Invisível
+                  className="w-16 bg-white border border-gray-300 p-1.5 rounded-lg text-center font-bold text-gray-800 outline-none focus:border-teal-500 transition-colors shadow-sm hover:border-teal-300"
                 />
               </div>
             </div>
@@ -47,7 +61,8 @@ export default function AlojamentosSection({ formData, handleAlojamentoChange, t
                 placeholder="Nomes (separados por vírgula)"
                 value={dados.nomes}
                 onChange={(e) => handleAlojamentoChange(id, 'nomes', e.target.value)}
-                className="w-full bg-white border border-gray-200 p-2.5 rounded-xl outline-none focus:border-teal-500 transition-colors text-sm text-gray-700 shadow-sm"
+                onBlur={(e) => handleBlur(id, 'nomes', e.target.value)} // <-- Injeção do Log Invisível
+                className="w-full bg-white border border-gray-200 p-2.5 rounded-xl outline-none focus:border-teal-500 transition-colors text-sm text-gray-700 shadow-sm hover:border-teal-300"
               />
             </div>
           </div>

@@ -10,6 +10,8 @@ import { calcularTotalAdolescentes } from '@/lib/utils';
 import { gerarPDF } from '@/lib/pdfGenerator';
 import { gerarWord } from '@/lib/wordGenerator';
 import { gerarTextoWhatsApp } from '@/lib/whatsappHelper';
+import { toast } from 'sonner'; // <-- IMPORTAÇÃO DAS NOTIFICAÇÕES (USABILIDADE)
+import { registrarLog } from '@/lib/logger'; // <-- IMPORTAÇÃO DO SISTEMA DE AUDITORIA
 
 // --- Componentes ---
 import LoginForm from '@/components/Auth/LoginForm';
@@ -90,7 +92,6 @@ export default function Home() {
   const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
   const recognitionRef = useRef<any>(null);
   
-  // Guardará o texto base do resumo ANTES de clicar em gravar
   const baseTextRef = useRef<string>(''); 
 
   const fetchHistory = useCallback(async () => {
@@ -160,11 +161,13 @@ export default function Home() {
 
           localStorage.setItem('equipes_cadastradas', JSON.stringify(equipes));
           
-          alert('✅ Equipas atualizadas e sincronizadas na nuvem com sucesso!');
+          toast.success('Equipas atualizadas e sincronizadas na nuvem com sucesso!');
+          registrarLog(userName, 'Atualização de Equipas', `Alterou a equipe padrão: ${editandoEquipe}`);
+          
           setView('select-plantao');
           window.scrollTo(0,0);
       } catch (error: any) {
-          alert('❌ Ocorreu um erro ao guardar as equipas na nuvem: ' + error.message);
+          toast.error('Ocorreu um erro ao guardar as equipas na nuvem: ' + error.message);
       } finally {
           setLoading(false);
       }
@@ -209,9 +212,13 @@ export default function Home() {
   const handleLogout = useCallback(async () => {
     if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
     if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+    
+    registrarLog(userName || 'Usuário', 'Logout', 'Sessão encerrada pelo usuário');
+    toast.info('Sessão encerrada com segurança.');
+    
     await supabase.auth.signOut();
     setSession(null); setUserName(''); setView('select-plantao'); setShowInactivityWarning(false);
-  }, []);
+  }, [userName]);
 
   const resetInactivityTimer = useCallback(() => {
     if (!session) return;
@@ -219,7 +226,7 @@ export default function Home() {
     if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
     setShowInactivityWarning(false);
     warningTimerRef.current = setTimeout(() => { setShowInactivityWarning(true); }, TEMPO_AVISO);
-    logoutTimerRef.current = setTimeout(() => { handleLogout(); alert("Sessão expirada por segurança."); }, TEMPO_INATIVIDADE);
+    logoutTimerRef.current = setTimeout(() => { handleLogout(); toast.warning("Sessão expirada por segurança."); }, TEMPO_INATIVIDADE);
   }, [session, handleLogout]);
 
   useEffect(() => {
@@ -268,18 +275,25 @@ export default function Home() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
     setLoading(false);
-    if (error) alert("Erro: " + error.message);
+    
+    if (error) {
+        toast.error("Erro no login: " + error.message);
+    } else {
+        toast.success("Login efetuado com sucesso!");
+        registrarLog(email, 'Login', 'Acesso ao sistema');
+    }
   };
 
   const handleRegisterUser = async (email: string, pass: string) => {
     setLoading(true);
     const { error } = await supabase.auth.signUp({ email, password: pass });
     setLoading(false);
-    if (error) alert("Erro: " + error.message); else alert("Usuário criado!");
+    if (error) toast.error("Erro ao registrar: " + error.message); 
+    else toast.success("Usuário criado com sucesso!");
   };
 
   const handleSaveName = async () => {
-    if (!nameInput.trim()) return alert("Por favor, digite um nome válido.");
+    if (!nameInput.trim()) return toast.warning("Por favor, digite um nome válido.");
     setLoading(true);
     const { error } = await supabase.auth.updateUser({
         data: { display_name: nameInput.trim() }
@@ -287,8 +301,10 @@ export default function Home() {
     setLoading(false);
     
     if (error) {
-        alert("Erro ao salvar o nome: " + error.message);
+        toast.error("Erro ao salvar o nome: " + error.message);
     } else {
+        toast.success(`Bem-vindo(a), ${nameInput.trim()}!`);
+        registrarLog(nameInput.trim(), 'Perfil', 'Definiu ou alterou o nome de usuário');
         setUserName(nameInput.trim());
         setView('select-plantao');
     }
@@ -329,6 +345,7 @@ export default function Home() {
                   ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
                   const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
                   setFormData(prev => ({ ...prev, fotos: [...(prev.fotos || []), dataUrl] }));
+                  toast.success("Foto adicionada!");
               };
               img.src = event.target.result;
           };
@@ -336,7 +353,6 @@ export default function Home() {
       }
   };
 
-  // --- LÓGICA DO MICROFONE 100% CORRIGIDA (SOLUÇÃO DEFINITIVA PARA ANDROID) ---
   const toggleRecording = () => {
     if (isRecording) {
       if (recognitionRef.current) recognitionRef.current.stop();
@@ -345,32 +361,22 @@ export default function Home() {
     }
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return alert("O seu navegador não suporta reconhecimento de voz. Tente usar o Google Chrome.");
+    if (!SpeechRecognition) return toast.error("O seu navegador não suporta reconhecimento de voz. Tente usar o Google Chrome.");
     
     const recognition = new SpeechRecognition();
     recognition.lang = 'pt-BR';
     recognition.continuous = true;
     
-    // DETETA SE É TELEMÓVEL (Android, iOS, etc.)
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    // O grande truque para curar o bug de repetição no Android: 
-    // Desativar resultados "interinos" em telemóveis. Assim ele só insere a frase quando você fizer uma pausa.
     recognition.interimResults = !isMobile; 
 
-    // Guarda exatamente como o texto estava ANTES de ligar o microfone (intocável durante a sessão)
     baseTextRef.current = formData.resumoPlantao || '';
 
     recognition.onresult = (event: any) => {
       let textoDaSessaoAtual = '';
-
-      // Reconstrói a frase gerada EXCLUSIVAMENTE nesta gravação a partir do zero
-      // Ignorar o `event.resultIndex` resolve as duplicações e gaguejos do Chrome
       for (let i = 0; i < event.results.length; i++) {
         textoDaSessaoAtual += ' ' + event.results[i][0].transcript.trim();
       }
-
-      // Soma TUDO o que existia antes (baseTextRef) com o novo texto exato da sessão
       const textoCompleto = (baseTextRef.current + textoDaSessaoAtual).replace(/\s+/g, ' ').trim();
 
       setFormData(prev => ({ 
@@ -393,11 +399,12 @@ export default function Home() {
     recognition.start();
     recognitionRef.current = recognition;
     setIsRecording(true);
+    toast.info("Microfone ativado. Pode falar...");
   };
 
   const handleDeleteReport = async (id: number) => {
     if (session?.user?.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-        return alert("Apenas o administrador pode excluir relatórios.");
+        return toast.error("Acesso Negado: Apenas o administrador pode excluir relatórios.");
     }
 
     const confirmacao = confirm("⚠️ ATENÇÃO: Tem certeza absoluta que deseja EXCLUIR DEFINITIVAMENTE este relatório? Esta ação não pode ser desfeita.");
@@ -411,14 +418,15 @@ export default function Home() {
         .eq('id', id);
 
       if (error) {
-        alert("Erro no banco de dados ao excluir: " + error.message);
+        toast.error("Erro ao excluir: " + error.message);
       } else {
-        alert("🗑️ Relatório excluído com sucesso!");
+        toast.success("Relatório excluído permanentemente!");
+        registrarLog(userName, 'Exclusão de Relatório', `Excluiu o relatório ID: ${id}`);
         setSelectedReport(null); 
         fetchHistory(); 
       }
     } catch (err) { 
-      alert("Erro inesperado ao tentar excluir o relatório. Verifique a sua internet."); 
+      toast.error("Erro inesperado. Verifique a sua conexão."); 
     } finally { 
       setLoading(false); 
     }
@@ -468,7 +476,7 @@ export default function Home() {
 
   const validarRelatorio = () => {
     if (!formData.resumoPlantao || formData.resumoPlantao.trim().length < 5) {
-        alert("⚠️ O Resumo do Plantão é OBRIGATÓRIO! Por favor, preencha-o antes de guardar.");
+        toast.warning("O Resumo do Plantão é OBRIGATÓRIO! Preencha-o antes de guardar.");
         document.getElementById('resumo-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return false;
     }
@@ -480,8 +488,14 @@ export default function Home() {
     setLoading(true);
     const { error } = await salvarNoSupabase();
     setLoading(false);
-    if (error) alert("Erro ao salvar: " + error.message);
-    else { alert(formData.id ? "✅ Relatório ATUALIZADO com sucesso!" : "✅ Relatório SALVO com sucesso!"); fetchHistory(); }
+    
+    if (error) {
+        toast.error("Erro ao salvar: " + error.message);
+    } else { 
+        toast.success(formData.id ? "Relatório ATUALIZADO com sucesso!" : "Relatório SALVO com sucesso!");
+        registrarLog(userName, 'Salvou Relatório', formData.id ? `Atualizou o relatório do ${formData.plantao}` : `Criou um novo relatório para o ${formData.plantao}`);
+        fetchHistory(); 
+    }
   };
 
   const handleSaveAndSend = async () => {
@@ -489,7 +503,11 @@ export default function Home() {
     setLoading(true);
     const { error } = await salvarNoSupabase();
     setLoading(false);
-    if (error) return alert("Erro ao salvar: " + error.message);
+    if (error) return toast.error("Erro ao salvar: " + error.message);
+    
+    toast.success("Relatório salvo! Abrindo o WhatsApp...");
+    registrarLog(userName, 'Envio WhatsApp', `Salvou e enviou o relatório do ${formData.plantao}`);
+    
     fetchHistory();
     const texto = gerarTextoWhatsApp(formData);
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`, '_blank');
@@ -511,7 +529,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans pb-12 selection:bg-blue-200">
       
-      {/* HEADER BAR COM O SEU CRÉDITO VISUAL */}
+      {/* HEADER BAR */}
       <div className="sticky top-0 z-40 px-6 py-4 flex flex-wrap justify-between items-center gap-4 transition-all border-b border-white/40 bg-white/80 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.06)]">
         <div className="flex items-center gap-3 overflow-hidden group cursor-pointer" onClick={() => { if(userName) setView('select-plantao'); }}>
             <div className="bg-gradient-to-br from-blue-500 to-blue-700 text-white p-2.5 sm:p-3 rounded-2xl shadow-lg group-hover:scale-105 transition-all duration-300 group-hover:shadow-blue-500/30">
@@ -523,7 +541,6 @@ export default function Home() {
                     CSIPRC Segurança
                 </h1>
                 
-                {/* --- A SUA ASSINATURA --- */}
                 <div className="inline-flex items-center bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100/80 rounded-full px-2.5 py-0.5 w-fit shadow-sm">
                     <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 tracking-wider uppercase">Desenvolvido pelo Socioeducador</span>
                     <span className="text-[10px] sm:text-[11px] font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 ml-1.5 uppercase tracking-wide">
@@ -536,7 +553,6 @@ export default function Home() {
         {userName && (
           <div className="flex items-center gap-3 flex-wrap justify-end flex-1 mt-2 sm:mt-0">
 
-              {/* AVISO DO AUTO-SAVE */}
               {view === 'form' && (
                   <div className="flex items-center gap-2 text-xs sm:text-sm font-bold bg-white/80 backdrop-blur-md px-4 py-2 rounded-full border border-gray-100 shadow-sm transition-all">
                       {isAutoSaving ? (
@@ -554,34 +570,34 @@ export default function Home() {
 
               {view === 'form' && (
                 <div className="flex gap-2 bg-gray-100/80 backdrop-blur p-1.5 rounded-xl border border-gray-200">
-                  <button onClick={() => gerarWord(formData)} className="bg-white text-blue-700 px-4 py-2 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center gap-2 font-bold text-sm">
+                  <button onClick={() => { gerarWord(formData); toast.success('Gerando arquivo Word...'); }} className="bg-white text-blue-700 px-4 py-2 rounded-lg shadow-sm hover:shadow-md active:scale-95 transition-all flex items-center gap-2 font-bold text-sm">
                     <span className="text-lg">📄</span> <span className="hidden sm:inline">Word</span>
                   </button>
-                  <button onClick={() => gerarPDF(formData)} className="bg-white text-red-600 px-4 py-2 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center gap-2 font-bold text-sm">
+                  <button onClick={() => { gerarPDF(formData); toast.success('Gerando arquivo PDF...'); }} className="bg-white text-red-600 px-4 py-2 rounded-lg shadow-sm hover:shadow-md active:scale-95 transition-all flex items-center gap-2 font-bold text-sm">
                     <span className="text-lg">📄</span> <span className="hidden sm:inline">PDF</span>
                   </button>
                 </div>
               )}
               
               {['form', 'select-plantao', 'manage-team'].includes(view) && (
-                  <button onClick={() => { fetchHistory(); setView('history'); setSelectedReport(null); }} className="bg-white border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl hover:bg-gray-50 hover:shadow-md transition-all flex items-center gap-2 font-bold text-sm hover:-translate-y-0.5">
+                  <button onClick={() => { fetchHistory(); setView('history'); setSelectedReport(null); }} className="bg-white border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl hover:bg-gray-50 hover:shadow-md active:scale-95 transition-all flex items-center gap-2 font-bold text-sm">
                     📜 <span className="hidden sm:inline">Histórico</span>
                   </button>
               )}
 
               {(view === 'history' || view === 'admin' || view === 'manage-team') && (
-                  <button onClick={() => setView('select-plantao')} className="bg-gray-800 text-white px-5 py-2.5 rounded-xl hover:bg-gray-700 hover:shadow-lg transition-all flex items-center gap-2 font-bold text-sm hover:-translate-y-0.5">
+                  <button onClick={() => setView('select-plantao')} className="bg-gray-800 text-white px-5 py-2.5 rounded-xl hover:bg-gray-700 hover:shadow-lg active:scale-95 transition-all flex items-center gap-2 font-bold text-sm">
                     ⬅ Voltar
                   </button>
               )}
               
               {isUserAdmin && view !== 'admin' && (
-                  <button onClick={() => setView('admin')} className="bg-purple-100 text-purple-700 px-5 py-2.5 rounded-xl hover:bg-purple-200 hover:-translate-y-0.5 transition-all flex items-center gap-2 font-bold text-sm shadow-sm">
+                  <button onClick={() => setView('admin')} className="bg-purple-100 text-purple-700 px-5 py-2.5 rounded-xl hover:bg-purple-200 active:scale-95 transition-all flex items-center gap-2 font-bold text-sm shadow-sm">
                     ⚙️ <span className="hidden sm:inline">Admin</span>
                   </button>
               )}
               
-              <button onClick={handleLogout} className="bg-red-50 text-red-600 border border-red-100 px-4 py-2.5 rounded-xl font-bold hover:bg-red-600 hover:text-white hover:shadow-md hover:shadow-red-500/20 transition-all duration-300 flex items-center gap-2 text-sm ml-2">
+              <button onClick={handleLogout} className="bg-red-50 text-red-600 border border-red-100 px-4 py-2.5 rounded-xl font-bold hover:bg-red-600 hover:text-white hover:shadow-md hover:shadow-red-500/20 active:scale-95 transition-all duration-300 flex items-center gap-2 text-sm ml-2">
                 🚪 <span className="hidden sm:inline">Sair</span>
               </button>
           </div>
@@ -592,13 +608,13 @@ export default function Home() {
       <div className="max-w-5xl mx-auto mt-8 px-4 sm:px-0">
         <div className="bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-3xl overflow-hidden border border-gray-100 min-h-[80vh]">
           
-          {/* TELA DE PRIMEIRO ACESSO */}
+          {/* TELA DE PRIMEIRO ACESSO / IDENTIFICAÇÃO DO NOME */}
           {view === 'set-name' && (
             <div className="flex flex-col items-center justify-center min-h-[75vh] px-6 py-12 animate-fade-in-up">
               <div className="text-6xl mb-6">👋</div>
-              <h2 className="text-3xl md:text-4xl font-black text-gray-800 mb-2 text-center">Bem-vindo(a) ao Sistema!</h2>
+              <h2 className="text-3xl md:text-4xl font-black text-gray-800 mb-2 text-center">Identificação no Sistema</h2>
               <p className="text-gray-500 mb-8 text-center text-lg max-w-md">
-                Como este é o seu primeiro acesso, por favor, indique-nos o seu nome para exibição na aplicação.
+                Para manter o controle das alterações e segurança, por favor, insira o seu nome de identificação.
               </p>
               
               <div className="w-full max-w-md space-y-4">
@@ -613,9 +629,9 @@ export default function Home() {
                 <button 
                   onClick={handleSaveName}
                   disabled={loading}
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white font-black text-lg py-4 rounded-2xl shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-1 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white font-black text-lg py-4 rounded-2xl shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {loading ? 'A guardar...' : 'Guardar e Entrar 🚀'}
+                  {loading ? 'A guardar...' : 'Guardar Identificação 🚀'}
                 </button>
               </div>
             </div>
@@ -679,8 +695,8 @@ export default function Home() {
                 </div>
 
                 <div className="mt-8 flex gap-4 flex-col sm:flex-row">
-                    <button onClick={() => setView('select-plantao')} className="flex-1 bg-white border border-gray-200 text-gray-700 font-bold py-4 rounded-2xl hover:bg-gray-50 transition-all shadow-sm">Cancelar</button>
-                    <button onClick={handleSalvarEquipes} disabled={loading} className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-4 rounded-2xl shadow-xl shadow-purple-500/30 hover:shadow-purple-500/50 hover:-translate-y-1 transition-all text-lg disabled:opacity-50">
+                    <button onClick={() => setView('select-plantao')} className="flex-1 bg-white border border-gray-200 text-gray-700 font-bold py-4 rounded-2xl hover:bg-gray-50 active:scale-95 transition-all shadow-sm">Cancelar</button>
+                    <button onClick={handleSalvarEquipes} disabled={loading} className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-4 rounded-2xl shadow-xl shadow-purple-500/30 hover:shadow-purple-500/50 active:scale-95 transition-all text-lg disabled:opacity-50">
                         {loading ? 'A guardar...' : '💾 Guardar Atualizações'}
                     </button>
                 </div>
@@ -699,14 +715,14 @@ export default function Home() {
                   
                   {isUserAdmin && (
                     <div className="mb-10">
-                        <button onClick={() => setView('manage-team')} className="flex items-center gap-2 bg-white text-purple-700 hover:bg-purple-50 hover:-translate-y-0.5 transition-all font-bold py-2.5 px-6 rounded-xl shadow-sm border border-purple-200 text-sm">
+                        <button onClick={() => setView('manage-team')} className="flex items-center gap-2 bg-white text-purple-700 hover:bg-purple-50 active:scale-95 transition-all font-bold py-2.5 px-6 rounded-xl shadow-sm border border-purple-200 text-sm">
                             <span className="text-lg">👥</span> Editar Equipas Padrão
                         </button>
                     </div>
                   )}
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl">
-                      <button onClick={() => handleSelectPlantao('ALFA')} className="relative bg-gradient-to-br from-amber-400 to-orange-500 text-white p-8 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-orange-500/40 hover:-translate-y-2 transition-all duration-300 group overflow-hidden border border-orange-300">
+                      <button onClick={() => handleSelectPlantao('ALFA')} className="relative bg-gradient-to-br from-amber-400 to-orange-500 text-white p-8 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-orange-500/40 hover:-translate-y-2 active:scale-95 transition-all duration-300 group overflow-hidden border border-orange-300">
                           <div className="absolute -top-10 -right-10 w-40 h-40 bg-white opacity-20 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
                           <div className="flex flex-col items-center gap-3 relative z-10">
                             <span className="text-6xl group-hover:scale-125 transition-transform duration-300 drop-shadow-lg">☀️</span>
@@ -715,7 +731,7 @@ export default function Home() {
                           </div>
                       </button>
                       
-                      <button onClick={() => handleSelectPlantao('BETA')} className="relative bg-gradient-to-br from-emerald-400 to-green-600 text-white p-8 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-green-500/40 hover:-translate-y-2 transition-all duration-300 group overflow-hidden border border-green-400">
+                      <button onClick={() => handleSelectPlantao('BETA')} className="relative bg-gradient-to-br from-emerald-400 to-green-600 text-white p-8 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-green-500/40 hover:-translate-y-2 active:scale-95 transition-all duration-300 group overflow-hidden border border-green-400">
                           <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white opacity-20 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
                           <div className="flex flex-col items-center gap-3 relative z-10">
                             <span className="text-6xl group-hover:scale-125 transition-transform duration-300 drop-shadow-lg">🌿</span>
@@ -724,7 +740,7 @@ export default function Home() {
                           </div>
                       </button>
 
-                      <button onClick={() => handleSelectPlantao('BETA_NOTURNO')} className="relative bg-gradient-to-br from-indigo-500 to-purple-700 text-white p-8 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-indigo-500/40 hover:-translate-y-2 transition-all duration-300 group overflow-hidden border border-indigo-400">
+                      <button onClick={() => handleSelectPlantao('BETA_NOTURNO')} className="relative bg-gradient-to-br from-indigo-500 to-purple-700 text-white p-8 rounded-3xl shadow-xl hover:shadow-2xl hover:shadow-indigo-500/40 hover:-translate-y-2 active:scale-95 transition-all duration-300 group overflow-hidden border border-indigo-400">
                           <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white opacity-10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
                           <div className="absolute top-4 left-4 text-white/20 text-4xl">✨</div>
                           <div className="flex flex-col items-center gap-3 relative z-10">
@@ -735,7 +751,7 @@ export default function Home() {
                       </button>
                   </div>
                   
-                  <button onClick={() => { setFormData(getTemplateVazio()); setView('form'); window.scrollTo(0,0); }} className="mt-12 flex items-center gap-2 text-gray-400 hover:text-gray-700 transition-all font-bold py-3 px-6 rounded-2xl hover:bg-gray-100 hover:shadow-sm border border-transparent hover:border-gray-200">
+                  <button onClick={() => { setFormData(getTemplateVazio()); setView('form'); window.scrollTo(0,0); }} className="mt-12 flex items-center gap-2 text-gray-400 hover:text-gray-700 transition-all font-bold py-3 px-6 rounded-2xl hover:bg-gray-100 active:scale-95 hover:shadow-sm border border-transparent hover:border-gray-200">
                       <span className="text-xl">✍️</span> Iniciar formulário em branco
                   </button>
               </div>
@@ -746,7 +762,7 @@ export default function Home() {
               
               <div className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl border border-gray-100 shadow-sm">
                   <div className="flex flex-wrap items-center gap-4">
-                    <button type="button" onClick={() => setView('select-plantao')} className="bg-white border border-gray-200 text-gray-500 hover:text-gray-800 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all hover:bg-gray-100">
+                    <button type="button" onClick={() => setView('select-plantao')} className="bg-white border border-gray-200 text-gray-500 hover:text-gray-800 px-4 py-2 rounded-xl text-sm font-bold shadow-sm active:scale-95 transition-all hover:bg-gray-100">
                         ⬅️ Trocar Plantão
                     </button>
                     <div className="h-6 w-px bg-gray-300 hidden sm:block"></div>
@@ -760,7 +776,7 @@ export default function Home() {
                   </div>
                   <div className="text-sm text-gray-600 bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100 hidden md:flex items-center gap-2 font-bold">
                     <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                    Olá, {userName}!
+                    Logado(a) como: {userName}
                   </div>
               </div>
 
@@ -773,7 +789,7 @@ export default function Home() {
                           <p className="text-sm opacity-90 font-medium">Você está alterando um relatório já salvo na base de dados.</p>
                         </div>
                       </div>
-                      <button onClick={() => { if(confirm("Deseja realmente cancelar? Todas as alterações não guardadas serão perdidas.")) setView('select-plantao'); }} className="bg-white border border-yellow-200 text-yellow-700 px-6 py-2.5 rounded-xl font-bold shadow-sm hover:bg-yellow-100 hover:scale-105 transition-all w-full sm:w-auto">Cancelar Edição</button>
+                      <button type="button" onClick={() => { if(confirm("Deseja realmente cancelar? Todas as alterações não guardadas serão perdidas.")) setView('select-plantao'); }} className="bg-white border border-yellow-200 text-yellow-700 px-6 py-2.5 rounded-xl font-bold shadow-sm active:scale-95 hover:bg-yellow-100 transition-all w-full sm:w-auto">Cancelar Edição</button>
                   </div>
               )}
               
@@ -805,11 +821,11 @@ export default function Home() {
                       
                       <div className="flex items-center gap-3 w-full sm:w-auto">
                         {formData.resumoPlantao && !isRecording && (
-                           <button type="button" onClick={() => { if(confirm("Tem a certeza que deseja limpar todo o resumo?")) setFormData(p => ({...p, resumoPlantao: ''})) }} className="px-4 py-2.5 text-red-500 bg-white hover:bg-red-50 font-bold rounded-xl transition-all text-sm border border-red-100 shadow-sm hover:border-red-200">
+                           <button type="button" onClick={() => { if(confirm("Tem a certeza que deseja limpar todo o resumo?")) setFormData(p => ({...p, resumoPlantao: ''})) }} className="px-4 py-2.5 text-red-500 bg-white active:scale-95 hover:bg-red-50 font-bold rounded-xl transition-all text-sm border border-red-100 shadow-sm hover:border-red-200">
                              Limpar Texto
                            </button>
                         )}
-                        <button type="button" onClick={toggleRecording} className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-black transition-all shadow-md text-base ${isRecording ? 'bg-red-500 text-white animate-pulse shadow-red-500/40 hover:bg-red-600' : 'bg-white text-blue-700 hover:bg-blue-50 border border-blue-200 hover:scale-105 hover:shadow-lg'}`}>
+                        <button type="button" onClick={toggleRecording} className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-black transition-all shadow-md active:scale-95 text-base ${isRecording ? 'bg-red-500 text-white animate-pulse shadow-red-500/40 hover:bg-red-600' : 'bg-white text-blue-700 hover:bg-blue-50 border border-blue-200 hover:shadow-lg'}`}>
                             {isRecording ? <><span>⏹️</span> Parar Gravação</> : <><span>🎙️</span> Ditar por Voz</>}
                         </button>
                       </div>
@@ -844,11 +860,11 @@ export default function Home() {
                       {formData.fotos.map((foto, idx) => (
                           <div key={idx} className="relative group overflow-hidden rounded-2xl shadow-sm border border-gray-200 aspect-video bg-white">
                               <img src={foto} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                              <button type="button" onClick={() => setFormData(p => ({ ...p, fotos: p.fotos.filter((_, i) => i !== idx)}))} className="absolute top-2 right-2 bg-red-500/90 backdrop-blur text-white w-8 h-8 flex items-center justify-center rounded-full font-bold opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-lg hover:scale-110">✕</button>
+                              <button type="button" onClick={() => { setFormData(p => ({ ...p, fotos: p.fotos.filter((_, i) => i !== idx)})); toast.success("Foto removida!"); }} className="absolute top-2 right-2 bg-red-500/90 backdrop-blur text-white w-8 h-8 flex items-center justify-center rounded-full font-bold opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-lg active:scale-90">✕</button>
                           </div>
                       ))}
-                      <label className="border-2 border-dashed border-gray-300 bg-white rounded-2xl flex flex-col items-center justify-center aspect-video cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition-all group shadow-sm">
-                          <span className="text-3xl text-gray-300 group-hover:scale-125 transition-transform group-hover:text-blue-500 mb-2">📸</span>
+                      <label className="border-2 border-dashed border-gray-300 bg-white rounded-2xl flex flex-col items-center justify-center aspect-video cursor-pointer active:scale-95 hover:bg-blue-50 hover:border-blue-400 transition-all group shadow-sm">
+                          <span className="text-3xl text-gray-300 group-hover:scale-110 transition-transform group-hover:text-blue-500 mb-2">📸</span>
                           <span className="text-sm text-gray-500 font-bold group-hover:text-blue-600">Adicionar Foto</span>
                           <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
                       </label>
@@ -874,18 +890,18 @@ export default function Home() {
               
               <div className="mt-12 p-6 bg-white/80 backdrop-blur-xl rounded-3xl shadow-[0_-15px_40px_rgba(0,0,0,0.08)] border border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4 sticky bottom-4 z-40">
                   <div className="flex gap-4">
-                      <button type="button" onClick={() => gerarWord(formData)} className="flex-1 bg-white text-blue-700 font-bold py-4 rounded-2xl hover:bg-blue-50 hover:-translate-y-1 transition-all border border-blue-100 shadow-sm hover:shadow-md flex items-center justify-center gap-2">
+                      <button type="button" onClick={() => { gerarWord(formData); toast.success('A exportar Word...'); }} className="flex-1 bg-white text-blue-700 font-bold py-4 rounded-2xl hover:bg-blue-50 active:scale-95 transition-all border border-blue-100 shadow-sm hover:shadow-md flex items-center justify-center gap-2">
                         <span className="text-xl">📄</span> Exportar Word
                       </button>
-                      <button type="button" onClick={() => gerarPDF(formData)} className="flex-1 bg-white text-red-600 font-bold py-4 rounded-2xl hover:bg-red-50 hover:-translate-y-1 transition-all border border-red-100 shadow-sm hover:shadow-md flex items-center justify-center gap-2">
+                      <button type="button" onClick={() => { gerarPDF(formData); toast.success('A exportar PDF...'); }} className="flex-1 bg-white text-red-600 font-bold py-4 rounded-2xl hover:bg-red-50 active:scale-95 transition-all border border-red-100 shadow-sm hover:shadow-md flex items-center justify-center gap-2">
                         <span className="text-xl">📄</span> Exportar PDF
                       </button>
                   </div>
                   <div className="flex gap-4">
-                      <button type="button" onClick={handleSalvarApenas} className={`flex-1 flex items-center justify-center gap-2 ${formData.id ? 'bg-gradient-to-r from-amber-400 to-orange-500 shadow-orange-500/30' : 'bg-gray-800 hover:bg-gray-900 shadow-gray-900/30'} text-white font-bold py-4 rounded-2xl shadow-xl hover:-translate-y-1 transition-all`}>
+                      <button type="button" onClick={handleSalvarApenas} className={`flex-1 flex items-center justify-center gap-2 ${formData.id ? 'bg-gradient-to-r from-amber-400 to-orange-500 shadow-orange-500/30 hover:shadow-orange-500/50' : 'bg-gray-800 hover:bg-gray-900 shadow-gray-900/30 hover:shadow-gray-900/50'} text-white font-bold py-4 rounded-2xl shadow-xl active:scale-95 transition-all`}>
                           <span className="text-xl">💾</span> {formData.id ? 'Guardar Edição' : 'Só Guardar'}
                       </button>
-                      <button type="button" onClick={handleSaveAndSend} className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-4 rounded-2xl shadow-xl shadow-green-500/30 hover:shadow-green-500/50 hover:-translate-y-1 transition-all flex items-center justify-center gap-2">
+                      <button type="button" onClick={handleSaveAndSend} className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-4 rounded-2xl shadow-xl shadow-green-500/30 hover:shadow-green-500/50 active:scale-95 transition-all flex items-center justify-center gap-2">
                           <span className="text-xl">📱</span> Zap + Guardar
                       </button>
                   </div>
