@@ -10,8 +10,8 @@ import { calcularTotalAdolescentes } from '@/lib/utils';
 import { gerarPDF } from '@/lib/pdfGenerator';
 import { gerarWord } from '@/lib/wordGenerator';
 import { gerarTextoWhatsApp } from '@/lib/whatsappHelper';
-import { toast } from 'sonner'; // <-- IMPORTAÇÃO DAS NOTIFICAÇÕES (USABILIDADE)
-import { registrarLog } from '@/lib/logger'; // <-- IMPORTAÇÃO DO SISTEMA DE AUDITORIA
+import { toast } from 'sonner'; 
+import { registrarLog } from '@/lib/logger'; 
 
 // --- Componentes ---
 import LoginForm from '@/components/Auth/LoginForm';
@@ -22,6 +22,7 @@ import EquipeSection from '@/components/Form/EquipeSection';
 import MateriaisSection from '@/components/Form/MateriaisSection';
 import AlojamentosSection from '@/components/Form/AlojamentosSection';
 import OcorrenciasSection from '@/components/Form/OcorrenciasSection';
+import LogsPanel from '@/components/Admin/LogsPanel';
 
 // --- CONFIGURAÇÃO SUPABASE ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -34,7 +35,7 @@ const TEMPO_INATIVIDADE = 5 * 60 * 1000;
 const TEMPO_AVISO = 4.5 * 60 * 1000;
 
 // --- DADOS PADRÃO ---
-const getBaseData = (): RelatorioData => ({
+const getBaseData = (): any => ({
     data: new Date().toLocaleDateString('pt-BR'),
     coordenador: '', 
     supervisor: '', educadores: '', apoio: '', cozinha: '', servicosGerais: '', portaria: '', plantao: '',
@@ -50,13 +51,18 @@ const getBaseData = (): RelatorioData => ({
         '08': { qtd: '01', nomes: 'Tarcio' }
     },
     resumoPlantao: '', assinaturaDiurno: '', assinaturaNoturno: '', assinaturaDiurnoImg: '', assinaturaNoturnoImg: '', fotos: [],
+    
+    // --- CAMPOS NOVOS (INTELIGÊNCIA DE SERVIDORES) ---
+    temVisita: false, responsaveisVisitas: [], responsaveisVistoria: [],
+    // ---------------------------------------------------
+
     temSaida: false, saidas: [], saidaAdolescente: '', saidaEducador: '', saidaHorario: '',
     temAdmissao: false, admissoes: [], temDesligamento: false, desligamentos: [],
     temFolga: false, educadoresFolga: '', temFerias: false, educadoresFerias: '', temApoioSemiliberdade: false, educadoresApoioSemiliberdade: '',
     historicoEdicoes: []
 });
 
-const getTemplateVazio = (): RelatorioData => ({
+const getTemplateVazio = (): any => ({
     ...getBaseData(),
     tonfas: '0', algemas: '0', chavesAcesso: '0', chavesAlgemas: '0', escudos: '0', lanternas: '0', celular: '0', radioCelular: '0', radioHT: '0', cadeados: '0', pendrives: '0',
     alojamentos: { '01': { qtd: '0', nomes: '' }, '02': { qtd: '0', nomes: '' }, '03': { qtd: '0', nomes: '' }, '04': { qtd: '0', nomes: '' }, '05': { qtd: '0', nomes: '' }, '06': { qtd: '0', nomes: '' }, '07': { qtd: '0', nomes: '' }, '08': { qtd: '0', nomes: '' } },
@@ -75,15 +81,16 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [isAutoSaving, setIsAutoSaving] = useState(false); 
   
-  const [view, setView] = useState<'select-plantao' | 'form' | 'history' | 'admin' | 'manage-team' | 'set-name'>('select-plantao');
+  const [view, setView] = useState<'select-plantao' | 'form' | 'history' | 'admin' | 'manage-team' | 'set-name' | 'logs'>('select-plantao');
+  
   const [userName, setUserName] = useState<string>(''); 
   const [nameInput, setNameInput] = useState<string>(''); 
   
-  const [historico, setHistorico] = useState<RelatorioData[]>([]);
-  const [selectedReport, setSelectedReport] = useState<RelatorioData | null>(null);
+  const [historico, setHistorico] = useState<any[]>([]);
+  const [selectedReport, setSelectedReport] = useState<any | null>(null);
   const [showInactivityWarning, setShowInactivityWarning] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [formData, setFormData] = useState<RelatorioData>(getTemplateVazio());
+  const [formData, setFormData] = useState<any>(getTemplateVazio());
   
   const [equipes, setEquipes] = useState<any>(defaultEquipes);
   const [editandoEquipe, setEditandoEquipe] = useState<'ALFA' | 'BETA' | 'BETA_NOTURNO'>('ALFA');
@@ -107,6 +114,13 @@ export default function Home() {
         resumoPlantao: item.resumo_plantao, assinaturaDiurno: item.plantao_diurno, assinaturaNoturno: item.plantao_noturno, 
         assinaturaDiurnoImg: item.assinatura_diurno_img || '', assinaturaNoturnoImg: item.assinatura_noturno_img || '',
         fotos: item.fotos || [], alojamentos: item.alojamentos || {},
+        
+        // --- CAMPOS NOVOS DA CARGA ---
+        temVisita: item.tem_visita || false, 
+        responsaveisVistoria: item.responsaveis_vistoria || [], 
+        responsaveisVisitas: item.responsaveis_visitas || [],
+        // -----------------------------
+
         temSaida: item.tem_saida || false, saidas: item.saidas || [], saidaAdolescente: item.saida_adolescente || '', saidaEducador: item.saida_educador || '', saidaHorario: item.saida_horario || '',
         temAdmissao: item.tem_admissao || false, admissoes: item.admissoes || [],
         temDesligamento: item.tem_desligamento || false, desligamentos: item.desligamentos || [],
@@ -319,7 +333,7 @@ export default function Home() {
     setFormData(prev => ({ ...prev, alojamentos: { ...prev.alojamentos, [id]: { ...prev.alojamentos[id], [field]: value } } }));
   };
 
-  const gerenciarArray = (campo: keyof RelatorioData, index: number, field?: string, value?: string, remover?: boolean, adicionar?: boolean, novoItem?: any) => {
+  const gerenciarArray = (campo: string, index: number, field?: string, value?: string, remover?: boolean, adicionar?: boolean, novoItem?: any) => {
       setFormData(prev => {
           const arr: any[] = [...(prev[campo] as any[]) || []];
           if (remover) arr.splice(index, 1);
@@ -442,6 +456,13 @@ export default function Home() {
       tonfas: formData.tonfas, algemas: formData.algemas, chaves_acesso: formData.chavesAcesso, chaves_algemas: formData.chavesAlgemas, escudos: formData.escudos, lanternas: formData.lanternas, celular: formData.celular, radio_celular: formData.radioCelular, radio_ht: formData.radioHT, cadeados: formData.cadeados, pendrives: formData.pendrives,
       alojamentos: formData.alojamentos, resumo_plantao: formData.resumoPlantao, plantao_diurno: formData.assinaturaDiurno, plantao_noturno: formData.assinaturaNoturno,
       assinatura_diurno_img: formData.assinaturaDiurnoImg, assinatura_noturno_img: formData.assinaturaNoturnoImg, fotos: formData.fotos,
+      
+      // --- SALVANDO DADOS NOVOS NO SUPABASE ---
+      tem_visita: formData.temVisita,
+      responsaveis_vistoria: formData.responsaveisVistoria,
+      responsaveis_visitas: formData.responsaveisVisitas,
+      // ----------------------------------------
+
       tem_saida: formData.temSaida, saidas: formData.saidas,
       tem_admissao: formData.temAdmissao, admissoes: formData.admissoes,
       tem_desligamento: formData.temDesligamento, desligamentos: formData.desligamentos,
@@ -585,16 +606,21 @@ export default function Home() {
                   </button>
               )}
 
-              {(view === 'history' || view === 'admin' || view === 'manage-team') && (
+              {['history', 'admin', 'manage-team', 'logs'].includes(view) && (
                   <button onClick={() => setView('select-plantao')} className="bg-gray-800 text-white px-5 py-2.5 rounded-xl hover:bg-gray-700 hover:shadow-lg active:scale-95 transition-all flex items-center gap-2 font-bold text-sm">
                     ⬅ Voltar
                   </button>
               )}
               
-              {isUserAdmin && view !== 'admin' && (
+              {isUserAdmin && view !== 'logs' && view !== 'admin' && (
+                <>
+                  <button onClick={() => setView('logs')} className="bg-blue-100 text-blue-700 px-5 py-2.5 rounded-xl hover:bg-blue-200 active:scale-95 transition-all flex items-center gap-2 font-bold text-sm shadow-sm">
+                    🕵️‍♂️ <span className="hidden sm:inline">Logs</span>
+                  </button>
                   <button onClick={() => setView('admin')} className="bg-purple-100 text-purple-700 px-5 py-2.5 rounded-xl hover:bg-purple-200 active:scale-95 transition-all flex items-center gap-2 font-bold text-sm shadow-sm">
                     ⚙️ <span className="hidden sm:inline">Admin</span>
                   </button>
+                </>
               )}
               
               <button onClick={handleLogout} className="bg-red-50 text-red-600 border border-red-100 px-4 py-2.5 rounded-xl font-bold hover:bg-red-600 hover:text-white hover:shadow-md hover:shadow-red-500/20 active:scale-95 transition-all duration-300 flex items-center gap-2 text-sm ml-2">
@@ -608,7 +634,7 @@ export default function Home() {
       <div className="max-w-5xl mx-auto mt-8 px-4 sm:px-0">
         <div className="bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-3xl overflow-hidden border border-gray-100 min-h-[80vh]">
           
-          {/* TELA DE PRIMEIRO ACESSO / IDENTIFICAÇÃO DO NOME */}
+          {/* TELA DE IDENTIFICAÇÃO DO NOME */}
           {view === 'set-name' && (
             <div className="flex flex-col items-center justify-center min-h-[75vh] px-6 py-12 animate-fade-in-up">
               <div className="text-6xl mb-6">👋</div>
@@ -637,8 +663,13 @@ export default function Home() {
             </div>
           )}
 
+          {/* PAINEL DE LOGS EXCLUSIVO PARA ADMIN */}
+          {view === 'logs' && userName && isUserAdmin && <LogsPanel />}
+
+          {/* PAINEL DE ADMIN GERAL */}
           {view === 'admin' && userName && isUserAdmin && <AdminPanel onRegister={handleRegisterUser} loading={loading} />}
 
+          {/* HISTÓRICO DE RELATÓRIOS */}
           {view === 'history' && userName && (
               <HistoryView 
                   historico={historico} loading={loading} selectedReport={selectedReport}
@@ -648,6 +679,7 @@ export default function Home() {
               />
           )}
 
+          {/* GERENCIAMENTO DE EQUIPE */}
           {view === 'manage-team' && userName && isUserAdmin && (
             <div className="p-8 md:p-12 animate-fade-in-up">
                 <div className="mb-8">
@@ -703,6 +735,7 @@ export default function Home() {
             </div>
           )}
 
+          {/* TELA INICIAL (SELEÇÃO DE PLANTÃO) */}
           {view === 'select-plantao' && userName && (
               <div className="flex flex-col items-center justify-center min-h-[75vh] px-6 py-12 animate-fade-in-up">
                   <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 border border-blue-100 px-5 py-2 rounded-full text-xs sm:text-sm font-black tracking-widest mb-8 shadow-sm">
@@ -757,6 +790,7 @@ export default function Home() {
               </div>
           )}
 
+          {/* FORMULÁRIO DE REGISTRO */}
           {view === 'form' && userName && (
               <form className="p-6 md:p-10 space-y-10 animate-fade-in-up" onSubmit={(e) => e.preventDefault()}>
               
@@ -796,7 +830,12 @@ export default function Home() {
               <div className="space-y-8 divide-y divide-gray-100">
                 <EquipeSection formData={formData} onChange={handleChange} />
                 <MateriaisSection formData={formData} onChange={handleChange} />
-                <AlojamentosSection formData={formData} handleAlojamentoChange={handleAlojamentoChange} totalAtual={totalAtual} />
+                <AlojamentosSection 
+                   formData={formData} 
+                   handleAlojamentoChange={handleAlojamentoChange} 
+                   totalAtual={totalAtual} 
+                   setFormData={setFormData} // <-- INJEÇÃO DO NOVO SISTEMA
+                />
               </div>
               
               <section id="resumo-section" className={`relative mt-12 p-8 rounded-3xl border transition-all duration-300 ${isRecording ? 'bg-blue-50/80 border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.3)]' : 'bg-gray-50 border-gray-200 shadow-inner'}`}>
@@ -847,7 +886,12 @@ export default function Home() {
                   </div>
               </section>
 
-              <OcorrenciasSection formData={formData} onChange={handleChange} gerenciarArray={gerenciarArray} />
+              <OcorrenciasSection 
+                  formData={formData} 
+                  onChange={handleChange} 
+                  gerenciarArray={gerenciarArray} 
+                  setFormData={setFormData} // <-- INJEÇÃO DO NOVO SISTEMA
+              />
 
               <section className="bg-gray-50 p-8 rounded-3xl border border-gray-200 mt-12 shadow-inner">
                   <div className="flex items-center justify-between mb-6">
@@ -857,10 +901,10 @@ export default function Home() {
                   </div>
                   
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {formData.fotos.map((foto, idx) => (
+                      {formData.fotos.map((foto: any, idx: number) => (
                           <div key={idx} className="relative group overflow-hidden rounded-2xl shadow-sm border border-gray-200 aspect-video bg-white">
                               <img src={foto} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                              <button type="button" onClick={() => { setFormData(p => ({ ...p, fotos: p.fotos.filter((_, i) => i !== idx)})); toast.success("Foto removida!"); }} className="absolute top-2 right-2 bg-red-500/90 backdrop-blur text-white w-8 h-8 flex items-center justify-center rounded-full font-bold opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-lg active:scale-90">✕</button>
+                              <button type="button" onClick={() => { setFormData((p: any) => ({ ...p, fotos: p.fotos.filter((_: any, i: number) => i !== idx)})); toast.success("Foto removida!"); }} className="absolute top-2 right-2 bg-red-500/90 backdrop-blur text-white w-8 h-8 flex items-center justify-center rounded-full font-bold opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-lg active:scale-90">✕</button>
                           </div>
                       ))}
                       <label className="border-2 border-dashed border-gray-300 bg-white rounded-2xl flex flex-col items-center justify-center aspect-video cursor-pointer active:scale-95 hover:bg-blue-50 hover:border-blue-400 transition-all group shadow-sm">
@@ -876,14 +920,14 @@ export default function Home() {
                       <label className="text-xs font-black text-gray-400 uppercase tracking-widest block ml-1">Supervisor Diurno</label>
                       <input name="assinaturaDiurno" value={formData.assinaturaDiurno} onChange={handleChange} placeholder="Nome do Supervisor" className="w-full bg-white border border-gray-200 p-4 rounded-xl text-gray-800 font-bold focus:ring-4 focus:ring-blue-50 focus:border-blue-400 outline-none transition-all shadow-sm" />
                       <div className="bg-white p-2 rounded-xl border border-gray-200 shadow-sm">
-                        <SignaturePad label="Assinatura Digital (Diurno)" onSave={(d) => setFormData(p => ({...p, assinaturaDiurnoImg: d}))} initialImage={formData.assinaturaDiurnoImg} />
+                        <SignaturePad label="Assinatura Digital (Diurno)" onSave={(d) => setFormData((p: any) => ({...p, assinaturaDiurnoImg: d}))} initialImage={formData.assinaturaDiurnoImg} />
                       </div>
                   </div>
                   <div className="space-y-4">
                       <label className="text-xs font-black text-gray-400 uppercase tracking-widest block ml-1">Supervisor Noturno</label>
                       <input name="assinaturaNoturno" value={formData.assinaturaNoturno} onChange={handleChange} placeholder="Nome do Supervisor" className="w-full bg-white border border-gray-200 p-4 rounded-xl text-gray-800 font-bold focus:ring-4 focus:ring-blue-50 focus:border-blue-400 outline-none transition-all shadow-sm" />
                       <div className="bg-white p-2 rounded-xl border border-gray-200 shadow-sm">
-                        <SignaturePad label="Assinatura Digital (Noturno)" onSave={(d) => setFormData(p => ({...p, assinaturaNoturnoImg: d}))} initialImage={formData.assinaturaNoturnoImg} />
+                        <SignaturePad label="Assinatura Digital (Noturno)" onSave={(d) => setFormData((p: any) => ({...p, assinaturaNoturnoImg: d}))} initialImage={formData.assinaturaNoturnoImg} />
                       </div>
                   </div>
               </div>

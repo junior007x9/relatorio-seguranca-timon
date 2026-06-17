@@ -3,21 +3,20 @@
 
 import { RelatorioData } from '@/types';
 import { registrarLog } from '@/lib/logger';
+import SmartServerSelect from '../UI/SmartServerSelect'; // <-- IMPORTAÇÃO DO NOVO COMPONENTE
 
 interface Props {
-  formData: RelatorioData;
+  formData: any;
   handleAlojamentoChange: (id: string, field: 'qtd' | 'nomes', value: string) => void;
   totalAtual: number;
+  setFormData: React.Dispatch<React.SetStateAction<any>>; // <-- NOVA PROP
 }
 
-export default function AlojamentosSection({ formData, handleAlojamentoChange, totalAtual }: Props) {
+export default function AlojamentosSection({ formData, handleAlojamentoChange, totalAtual, setFormData }: Props) {
   
-  // Intercepta a saída do campo (onBlur) para salvar o log silenciosamente sem spam visual
   const handleBlur = (id: string, field: 'qtd' | 'nomes', value: string) => {
     const userName = typeof window !== "undefined" ? localStorage.getItem("usuarioAtual") || "Usuário" : "Usuário";
     const nomeCampo = field === 'qtd' ? 'a quantidade' : 'os nomes';
-    
-    // Só registra no log de auditoria se houver algum valor preenchido
     if (value.trim() !== '') {
         registrarLog(userName, 'Alojamentos', `Atualizou ${nomeCampo} do Alojamento #${id} para: ${value}`);
     }
@@ -37,7 +36,7 @@ export default function AlojamentosSection({ formData, handleAlojamentoChange, t
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {Object.entries(formData.alojamentos).map(([id, dados]) => (
+        {Object.entries(formData.alojamentos).map(([id, dados]: any) => (
           <div key={id} className="bg-gray-50 p-4 rounded-2xl border border-gray-200 hover:border-teal-300 hover:shadow-md transition-all group focus-within:ring-2 focus-within:ring-teal-100">
             <div className="flex justify-between items-center mb-3">
               <h4 className="font-black text-gray-700 text-lg flex items-center gap-1">
@@ -50,7 +49,7 @@ export default function AlojamentosSection({ formData, handleAlojamentoChange, t
                   min="0"
                   value={dados.qtd}
                   onChange={(e) => handleAlojamentoChange(id, 'qtd', e.target.value)}
-                  onBlur={(e) => handleBlur(id, 'qtd', e.target.value)} // <-- Injeção do Log Invisível
+                  onBlur={(e) => handleBlur(id, 'qtd', e.target.value)}
                   className="w-16 bg-white border border-gray-300 p-1.5 rounded-lg text-center font-bold text-gray-800 outline-none focus:border-teal-500 transition-colors shadow-sm hover:border-teal-300"
                 />
               </div>
@@ -61,12 +60,22 @@ export default function AlojamentosSection({ formData, handleAlojamentoChange, t
                 placeholder="Nomes (separados por vírgula)"
                 value={dados.nomes}
                 onChange={(e) => handleAlojamentoChange(id, 'nomes', e.target.value)}
-                onBlur={(e) => handleBlur(id, 'nomes', e.target.value)} // <-- Injeção do Log Invisível
+                onBlur={(e) => handleBlur(id, 'nomes', e.target.value)}
                 className="w-full bg-white border border-gray-200 p-2.5 rounded-xl outline-none focus:border-teal-500 transition-colors text-sm text-gray-700 shadow-sm hover:border-teal-300"
               />
             </div>
           </div>
         ))}
+      </div>
+
+      {/* COMPONENTE INTELIGENTE PARA VISTORIA */}
+      <div className="mt-8 pt-6 border-t border-gray-100 bg-teal-50/30 p-4 rounded-2xl">
+        <SmartServerSelect 
+          label="🔎 Quem fez a VISTORIA nos Alojamentos hoje?" 
+          campo="responsaveisVistoria" 
+          formData={formData} 
+          setFormData={setFormData} 
+        />
       </div>
     </section>
   );
