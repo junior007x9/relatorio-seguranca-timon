@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import HelpButton from "@/components/UI/HelpButton";
@@ -14,9 +14,27 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Configuração da cor da barra de status do celular
+export const viewport: Viewport = {
+  themeColor: "#2563eb",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+};
+
+// Configuração para instalar no celular
 export const metadata: Metadata = {
-  title: "Sistema de Relatórios de Segurança",
-  description: "Controle de plantões e ocorrências de segurança",
+  title: "CSIPRC Segurança",
+  description: "Sistema de Relatórios de Segurança",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "CSIPRC Seg",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default function RootLayout({
@@ -27,14 +45,12 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#f8fafc] text-gray-900`}
       >
-        {/* Componente para exibir os alertas bonitos e dinâmicos no canto da tela */}
         <Toaster position="top-right" richColors />
         
         {children}
 
-        {/* Botão de ajuda flutuante que aparecerá em todas as telas */}
         <HelpButton />
       </body>
     </html>
