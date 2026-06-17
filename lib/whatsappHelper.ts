@@ -1,58 +1,100 @@
 // lib/whatsappHelper.ts
-
 import { RelatorioData } from '@/types';
-import { calcularTotalAdolescentes, converterParaLista } from './utils';
+import { calcularTotalAdolescentes } from './utils';
 
-export const gerarTextoWhatsApp = (dados: RelatorioData) => {
-    const total = calcularTotalAdolescentes(dados);
-    let texto = `*RELATÓRIO EQUIPE DE SEGURANÇA - CSIPRC*\n📅 Data: ${dados.data}\n`;
-    texto += `\n*👮 COORDENAÇÃO*\nCoordenador de Segurança: ${dados.coordenador}\nSupervisor: ${dados.supervisor}`;
-    texto += `\n\n*👥 EDUCADORES*\n${dados.educadores}`;
-    if (dados.temFolga) texto += `\n🏖️ Folga: ${dados.educadoresFolga}`;
-    if (dados.temFerias) texto += `\n✈️ Férias: ${dados.educadoresFerias}`;
-    
-    texto += `\n\n*🤝 EQUIPE DE APOIO*`;
-    texto += `\nPortaria: ${dados.portaria || '-'}`;
-    texto += `\nCozinha: ${dados.cozinha || '-'}`;
-    texto += `\nServ. Gerais: ${dados.servicosGerais || '-'}`;
-    texto += `\nOutros Apoios: ${dados.apoio || '-'}`;
-    texto += `\n\n🕒 Plantão: ${dados.plantao}`;
-    
-    if (dados.temSaida) { 
-        texto += `\n\n*🚨 SAÍDA EXTERNA*\n👤 Adolescente: ${dados.saidaAdolescente}\n👮 Educador: ${dados.saidaEducador}\n⏰ Horário: ${dados.saidaHorario}`; 
-    }
-
-    if (dados.temAdmissao) {
-        texto += `\n\n*📥 ADMISSÃO DE ADOLESCENTE*`;
-        if (dados.admissoes && dados.admissoes.length > 0) {
-            dados.admissoes.forEach(adm => texto += `\n👤 ${adm.nome}\n   - Rec: ${adm.quemRecebeu}\n   - Vist: ${adm.quemVistoria}\n   - Orig: ${adm.origem}\n   - Hora: ${adm.horario}`);
-        } else { texto += `\nSim (sem detalhes)`; }
-    }
-
-    if (dados.temDesligamento) {
-        texto += `\n\n*📤 DESLIGAMENTO*`;
-        if (dados.desligamentos && dados.desligamentos.length > 0) {
-            dados.desligamentos.forEach(des => texto += `\n👤 ${des.nome}\n   - Levou: ${des.quemLevou}\n   - Mot: ${des.motorista}\n   - Vist: ${des.quemVistoria}\n   - Hora: ${des.horario}`);
-        } else { texto += `\nSim (sem detalhes)`; }
-    }
-
-    if (dados.temApoioSemiliberdade) texto += `\n\n🔄 Apoio Semiliberdade: ${dados.educadoresApoioSemiliberdade}`;
-
-    texto += `\n\n*🛡️ MATERIAIS*`;
-    texto += `\n🔹 Tonfas: ${dados.tonfas || '0'} | Algemas: ${dados.algemas || '0'}`;
-    texto += `\n🔹 Celular: ${dados.celular || '0'} | Rádio HT: ${dados.radioHT || '0'}`;
-    texto += `\n🔹 Chaves Acesso: ${dados.chavesAcesso || '0'} | Chaves Algema: ${dados.chavesAlgemas || '0'}`;
-    texto += `\n🔹 Cadeados: ${dados.cadeados || '0'} | Pendrives: ${dados.pendrives || '0'}`;
-    texto += `\n🔹 Escudos: ${dados.escudos || '0'} | Lanternas: ${dados.lanternas || '0'}`;
-    texto += `\n🔹 Rádio Cel: ${dados.radioCelular || '0'}`;
-    texto += `\n\n*🔢 ADOLESCENTES*`;
-    ['01', '02', '03', '04', '05', '06', '07', '08'].forEach(num => {
-        const al = dados.alojamentos[num];
-        if (al) { texto += `\n🏠 AL-${num}: ${al.qtd || '0'} ${al.nomes ? `(${al.nomes})` : ''}`; }
-    });
-    texto += `\n\n*TOTAL: ${total} adolescentes*`;
-    const linhasResumo = converterParaLista(dados.resumoPlantao);
-    texto += `\n\n*📝 RESUMO DO PLANTÃO*\n` + (linhasResumo.length > 0 ? linhasResumo.map(l => `• ${l}`).join('\n') : 'Sem observações.');
-    texto += `\n\n*✍️ ASSINATURAS*\n☀️ Diurno: ${dados.assinaturaDiurno}\n🌙 Noturno: ${dados.assinaturaNoturno}`;
-    return texto;
+// Função para formatar a lista Inteligente nos relatórios
+export const formatarSmartList = (lista: any[]) => {
+  if (!lista || lista.length === 0) return 'Não informado';
+  return lista.map(s => `${s.nome} (${s.cargo})`).join(', ');
 };
+
+export function gerarTextoWhatsApp(data: RelatorioData) {
+  const totalAlojados = calcularTotalAdolescentes(data);
+  
+  let texto = `*RELATÓRIO DE PLANTÃO - ${data.plantao}*\n`;
+  texto += `📅 Data: ${data.data}\n\n`;
+
+  texto += `*👥 EQUIPE:*\n`;
+  texto += `Coordenador(a): ${data.coordenador || 'Não informado'}\n`;
+  texto += `Supervisor(a): ${data.supervisor || 'Não informado'}\n`;
+  texto += `Educadores: ${data.educadores || 'Não informado'}\n`;
+  texto += `Apoio Geral: ${data.apoio || 'Não informado'}\n`;
+  texto += `Portaria: ${data.portaria || 'Não informado'}\n`;
+  texto += `Cozinha: ${data.cozinha || 'Não informado'}\n`;
+  texto += `Serviços Gerais: ${data.servicosGerais || 'Não informado'}\n\n`;
+
+  texto += `*🎒 MATERIAIS:*\n`;
+  texto += `Tonfas: ${data.tonfas}\n`;
+  texto += `Algemas: ${data.algemas}\n`;
+  texto += `Chaves de Acesso: ${data.chavesAcesso}\n`;
+  texto += `Rádio Celular: ${data.radioCelular}\n`; // <-- INVERTIDO AQUI
+  texto += `Escudos: ${data.escudos}\n`;
+  texto += `Lanternas: ${data.lanternas}\n`;
+  texto += `Celular: ${data.celular}\n`;
+  texto += `Rádio HT: ${data.radioHT}\n`;
+  texto += `Chaves Algemas: ${data.chavesAlgemas}\n`; // <-- INVERTIDO AQUI
+  texto += `Cadeados: ${data.cadeados}\n`;
+  texto += `Pendrives: ${data.pendrives}\n\n`;
+
+  texto += `*🛏️ ALOJAMENTOS (Total: ${totalAlojados}):*\n`;
+  Object.entries(data.alojamentos).forEach(([id, aloj]) => {
+    if (Number(aloj.qtd) > 0) {
+      texto += `Quarto ${id}: ${aloj.qtd} (${aloj.nomes})\n`;
+    }
+  });
+  texto += `\n*⏰ Horário da Vistoria:* ${data.horarioVistoria || 'Não informado'}\n`;
+  texto += `*🔎 Vistoriado por:* ${formatarSmartList(data.responsaveisVistoria)}\n\n`;
+
+  texto += `*📝 RESUMO DO PLANTÃO:*\n${data.resumoPlantao}\n\n`;
+
+  if (data.temVisita) {
+    texto += `*👨‍👩‍👧 VISITAS (Sábado):*\n`;
+    texto += `Revista feita por: ${formatarSmartList(data.responsaveisVisitas)}\n\n`;
+  }
+
+  if (data.temSaida && data.saidas?.length > 0) {
+    texto += `*🚗 SAÍDAS EXTERNAS:*\n`;
+    data.saidas.forEach((s: any) => {
+      texto += `- Adolescente: ${s.adolescente || 'Não inf.'}\n`;
+      texto += `  Educadores: ${formatarSmartList(s.educadores)}\n`;
+      texto += `  Horário: ${s.horario || 'Não inf.'}\n`;
+    });
+    texto += `\n`;
+  }
+
+  if (data.temAdmissao && data.admissoes?.length > 0) {
+    texto += `*📥 ADMISSÕES:*\n`;
+    data.admissoes.forEach((a: any) => {
+      texto += `- Adolescente(s): ${a.nome || 'Não inf.'}\n`;
+      texto += `  Recebido por: ${a.quemRecebeu || 'Não inf.'}\n`;
+      texto += `  Vistoriado por: ${formatarSmartList(a.vistoriadores)}\n`;
+      texto += `  Horário: ${a.horario || 'Não inf.'}\n`;
+    });
+    texto += `\n`;
+  }
+
+  if (data.temDesligamento && data.desligamentos?.length > 0) {
+    texto += `*📤 DESLIGAMENTOS:*\n`;
+    data.desligamentos.forEach((d: any) => {
+      texto += `- Adolescente: ${d.nome || 'Não inf.'}\n`;
+      texto += `  Levado por: ${d.quemLevou || 'Não inf.'} (Mot: ${d.motorista || 'Não inf.'})\n`;
+      texto += `  Vistoriado por: ${formatarSmartList(d.vistoriadores)}\n`;
+      texto += `  Horário: ${d.horario || 'Não inf.'}\n`;
+    });
+    texto += `\n`;
+  }
+
+  const outrasOcorrencias = [];
+  if (data.temFolga) outrasOcorrencias.push(`Folgas: ${data.educadoresFolga}`);
+  if (data.temFerias) outrasOcorrencias.push(`Férias/Atestado: ${data.educadoresFerias}`);
+  if (data.temApoioSemiliberdade) outrasOcorrencias.push(`Apoio Semiliberdade: ${data.educadoresApoioSemiliberdade}`);
+
+  if (outrasOcorrencias.length > 0) {
+    texto += `*📌 OUTRAS INFORMAÇÕES:*\n${outrasOcorrencias.join('\n')}\n\n`;
+  }
+
+  texto += `Ass. Diurno: ${data.assinaturaDiurno || 'Pendente'}\n`;
+  texto += `Ass. Noturno: ${data.assinaturaNoturno || 'Pendente'}`;
+
+  return texto;
+}

@@ -73,9 +73,9 @@ export default function AlojamentosSection({ formData, handleAlojamentoChange, t
         <div className="flex-1 w-full">
           <SmartServerSelect 
             label="🔎 Quem fez a VISTORIA nos Alojamentos hoje?" 
-            campo="responsaveisVistoria" 
             formData={formData} 
-            setFormData={setFormData} 
+            selecionados={formData.responsaveisVistoria || []}
+            onChange={(val) => setFormData((prev: any) => ({ ...prev, responsaveisVistoria: val }))} 
           />
         </div>
         

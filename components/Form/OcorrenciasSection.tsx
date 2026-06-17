@@ -57,9 +57,9 @@ export default function OcorrenciasSection({ formData, onChange, gerenciarArray,
           <div className="mt-5 animate-fade-in-up">
              <SmartServerSelect 
                 label="👮 Quem fez a REVISTA NAS VISITAS?" 
-                campo="responsaveisVisitas" 
                 formData={formData} 
-                setFormData={setFormData} 
+                selecionados={formData.responsaveisVisitas || []}
+                onChange={(val) => setFormData((prev: any) => ({...prev, responsaveisVisitas: val}))} 
              />
           </div>
         )}
@@ -75,23 +75,27 @@ export default function OcorrenciasSection({ formData, onChange, gerenciarArray,
         {formData.temSaida && (
           <div className="mt-5 space-y-4 animate-fade-in-up">
             {formData.saidas?.map((saida: any, i: number) => (
-              <div key={i} className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-blue-50/50 p-5 rounded-2xl border border-blue-100 relative mt-2">
+              <div key={i} className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-blue-50/50 p-5 rounded-2xl border border-blue-100 relative mt-2">
                 <button type="button" onClick={() => handleRemoveArrayItem('saidas', i, 'Saída Externa')} className="absolute -top-3 -right-3 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white w-8 h-8 rounded-full flex items-center justify-center font-bold transition-all border border-red-200 hover:border-transparent shadow-sm active:scale-90">✕</button>
                 <div className="space-y-1">
                     <label className="text-xs font-bold text-gray-500 uppercase">Adolescente</label>
                     <input type="text" value={saida.adolescente || ''} onChange={(e) => gerenciarArray('saidas', i, 'adolescente', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-400" placeholder="Nome do adolescente" />
                 </div>
                 <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-500 uppercase">Educador</label>
-                    <input type="text" value={saida.educador || ''} onChange={(e) => gerenciarArray('saidas', i, 'educador', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-400" placeholder="Nome do educador" />
-                </div>
-                <div className="space-y-1">
                     <label className="text-xs font-bold text-gray-500 uppercase">Horário</label>
                     <input type="time" value={saida.horario || ''} onChange={(e) => gerenciarArray('saidas', i, 'horario', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
                 </div>
+                <div className="sm:col-span-2 pt-2">
+                    <SmartServerSelect 
+                      label="👮 Educador(es) na Saída Externa" 
+                      formData={formData}
+                      selecionados={saida.educadores || []}
+                      onChange={(val) => gerenciarArray('saidas', i, 'educadores', val)}
+                    />
+                </div>
               </div>
             ))}
-            <button type="button" onClick={() => handleAddArrayItem('saidas', 'Saída Externa', { adolescente: '', educador: '', horario: '' })} className="text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl active:scale-95 transition-all border border-blue-200 flex items-center gap-2 mt-4">
+            <button type="button" onClick={() => handleAddArrayItem('saidas', 'Saída Externa', { adolescente: '', educadores: [], horario: '' })} className="text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl active:scale-95 transition-all border border-blue-200 flex items-center gap-2 mt-4">
               <span>➕</span> Adicionar Saída Externa
             </button>
           </div>
@@ -111,24 +115,28 @@ export default function OcorrenciasSection({ formData, onChange, gerenciarArray,
               <div key={i} className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-green-50/50 p-5 rounded-2xl border border-green-100 relative mt-2">
                 <button type="button" onClick={() => handleRemoveArrayItem('admissoes', i, 'Admissão')} className="absolute -top-3 -right-3 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white w-8 h-8 rounded-full flex items-center justify-center font-bold transition-all border border-red-200 hover:border-transparent shadow-sm active:scale-90">✕</button>
                 <div className="space-y-1 sm:col-span-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase">Adolescente</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase">Adolescente(s)</label>
                     <input type="text" value={adm.nome || ''} onChange={(e) => gerenciarArray('admissoes', i, 'nome', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-green-400" placeholder="Nome do adolescente admitido" />
                 </div>
                 <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-500 uppercase">Equipe Técnica / Supervisor</label>
-                    <input type="text" value={adm.quemRecebeu || ''} onChange={(e) => gerenciarArray('admissoes', i, 'quemRecebeu', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-green-400" placeholder="Quem recebeu?" />
-                </div>
-                <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-500 uppercase">Quem fez a vistoria?</label>
-                    <input type="text" value={adm.quemVistoria || ''} onChange={(e) => gerenciarArray('admissoes', i, 'quemVistoria', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-green-400" placeholder="Nome do responsável" />
+                    <label className="text-xs font-bold text-gray-500 uppercase">Equipe Técnica / Supervisor / Diretora</label>
+                    <input type="text" value={adm.quemRecebeu || ''} onChange={(e) => gerenciarArray('admissoes', i, 'quemRecebeu', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-green-400" placeholder="Quem recebeu na admissão?" />
                 </div>
                 <div className="space-y-1">
                     <label className="text-xs font-bold text-gray-500 uppercase">Horário</label>
                     <input type="time" value={adm.horario || ''} onChange={(e) => gerenciarArray('admissoes', i, 'horario', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-green-400 bg-white" />
                 </div>
+                <div className="sm:col-span-2 pt-2">
+                    <SmartServerSelect 
+                      label="🔎 Quem fez a vistoria da Admissão?" 
+                      formData={formData}
+                      selecionados={adm.vistoriadores || []}
+                      onChange={(val) => gerenciarArray('admissoes', i, 'vistoriadores', val)}
+                    />
+                </div>
               </div>
             ))}
-            <button type="button" onClick={() => handleAddArrayItem('admissoes', 'Admissão', { nome: '', quemRecebeu: '', quemVistoria: '', horario: '' })} className="text-sm font-bold text-green-600 bg-green-50 hover:bg-green-100 px-4 py-2 rounded-xl active:scale-95 transition-all border border-green-200 flex items-center gap-2 mt-4">
+            <button type="button" onClick={() => handleAddArrayItem('admissoes', 'Admissão', { nome: '', quemRecebeu: '', vistoriadores: [], horario: '' })} className="text-sm font-bold text-green-600 bg-green-50 hover:bg-green-100 px-4 py-2 rounded-xl active:scale-95 transition-all border border-green-200 flex items-center gap-2 mt-4">
               <span>➕</span> Adicionar Admissão
             </button>
           </div>
@@ -148,7 +156,7 @@ export default function OcorrenciasSection({ formData, onChange, gerenciarArray,
               <div key={i} className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-red-50/50 p-5 rounded-2xl border border-red-100 relative mt-2">
                 <button type="button" onClick={() => handleRemoveArrayItem('desligamentos', i, 'Desligamento')} className="absolute -top-3 -right-3 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white w-8 h-8 rounded-full flex items-center justify-center font-bold transition-all border border-red-200 hover:border-transparent shadow-sm active:scale-90">✕</button>
                 <div className="space-y-1 sm:col-span-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase">Adolescente</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase">Adolescente(s)</label>
                     <input type="text" value={desl.nome || ''} onChange={(e) => gerenciarArray('desligamentos', i, 'nome', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-red-400" placeholder="Nome do adolescente desligado" />
                 </div>
                 <div className="space-y-1">
@@ -160,16 +168,20 @@ export default function OcorrenciasSection({ formData, onChange, gerenciarArray,
                     <input type="text" value={desl.motorista || ''} onChange={(e) => gerenciarArray('desligamentos', i, 'motorista', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-red-400" placeholder="Nome do motorista" />
                 </div>
                 <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-500 uppercase">Quem fez a vistoria?</label>
-                    <input type="text" value={desl.quemVistoria || ''} onChange={(e) => gerenciarArray('desligamentos', i, 'quemVistoria', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-red-400" placeholder="Nome do responsável pela vistoria" />
-                </div>
-                <div className="space-y-1">
                     <label className="text-xs font-bold text-gray-500 uppercase">Horário</label>
                     <input type="time" value={desl.horario || ''} onChange={(e) => gerenciarArray('desligamentos', i, 'horario', e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-red-400 bg-white" />
                 </div>
+                <div className="sm:col-span-2 pt-2">
+                    <SmartServerSelect 
+                      label="🔎 Quem fez a vistoria do Desligamento?" 
+                      formData={formData}
+                      selecionados={desl.vistoriadores || []}
+                      onChange={(val) => gerenciarArray('desligamentos', i, 'vistoriadores', val)}
+                    />
+                </div>
               </div>
             ))}
-            <button type="button" onClick={() => handleAddArrayItem('desligamentos', 'Desligamento', { nome: '', quemLevou: '', motorista: '', quemVistoria: '', horario: '' })} className="text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-xl active:scale-95 transition-all border border-red-200 flex items-center gap-2 mt-4">
+            <button type="button" onClick={() => handleAddArrayItem('desligamentos', 'Desligamento', { nome: '', quemLevou: '', motorista: '', vistoriadores: [], horario: '' })} className="text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-xl active:scale-95 transition-all border border-red-200 flex items-center gap-2 mt-4">
               <span>➕</span> Adicionar Desligamento
             </button>
           </div>

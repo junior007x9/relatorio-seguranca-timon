@@ -8,7 +8,13 @@ import { saveAs } from 'file-saver';
 import { RelatorioData } from '@/types';
 import { calcularTotalAdolescentes, converterParaLista, carregarImagemBuffer } from './utils';
 
-export const gerarWord = async (dados: RelatorioData) => {
+// Função auxiliar para extrair a lista inteligente no Word
+const formatarSmartList = (lista: any[]) => {
+  if (!lista || lista.length === 0) return 'Não informado';
+  return lista.map(s => `${s.nome} (${s.cargo})`).join(', ');
+};
+
+export const gerarWord = async (dados: RelatorioData | any) => {
   const total = calcularTotalAdolescentes(dados);
 
   try {
@@ -36,14 +42,15 @@ export const gerarWord = async (dados: RelatorioData) => {
             new Paragraph({ children: [new TextRun({ text: "PLANTÃO: ", bold: true }), new TextRun(dados.plantao)], spacing: { after: 100 } }),
       );
 
+      // TABELA DE MATERIAIS DE SEGURANÇA (Ordem corrigida)
       childrenParagraphs.push(
             new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "MATERIAIS DE SEGURANÇA", bold: true, underline: {} })], spacing: { after: 50 } }),
             new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [
                 new TableRow({ children: [ new TableCell({ children: [new Paragraph({ text: "ITEM", bold: true, size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "QTD", bold: true, size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "ITEM", bold: true, size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "QTD", bold: true, size: 18 })], ...cellStyle }) ] }),
                 new TableRow({ children: [ new TableCell({ children: [new Paragraph({ text: "Tonfas", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.tonfas || "0", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "Celular + Carregador", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.celular || "0", size: 18 })], ...cellStyle }) ] }),
-                new TableRow({ children: [ new TableCell({ children: [new Paragraph({ text: "Algemas", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.algemas || "0", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "Chaves Algemas", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.chavesAlgemas || "0", size: 18 })], ...cellStyle }) ] }),
+                new TableRow({ children: [ new TableCell({ children: [new Paragraph({ text: "Algemas", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.algemas || "0", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "Rádio Celular", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.radioCelular || "0", size: 18 })], ...cellStyle }) ] }),
                 new TableRow({ children: [ new TableCell({ children: [new Paragraph({ text: "Chaves Acesso", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.chavesAcesso || "0", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "Rádio HT", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.radioHT || "0", size: 18 })], ...cellStyle }) ] }),
-                new TableRow({ children: [ new TableCell({ children: [new Paragraph({ text: "Rádio Celular", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.radioCelular || "0", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "Cadeados", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.cadeados || "0", size: 18 })], ...cellStyle }) ] }),
+                new TableRow({ children: [ new TableCell({ children: [new Paragraph({ text: "Chaves Algemas", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.chavesAlgemas || "0", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "Cadeados", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.cadeados || "0", size: 18 })], ...cellStyle }) ] }),
                 new TableRow({ children: [ new TableCell({ children: [new Paragraph({ text: "Escudos", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.escudos || "0", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "Pendrives", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.pendrives || "0", size: 18 })], ...cellStyle }) ] }),
                 new TableRow({ children: [ new TableCell({ children: [new Paragraph({ text: "Lanternas", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: dados.lanternas || "0", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "", size: 18 })], ...cellStyle }), new TableCell({ children: [new Paragraph({ text: "", size: 18 })], ...cellStyle }) ] })
             ] }),
@@ -51,16 +58,21 @@ export const gerarWord = async (dados: RelatorioData) => {
             new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "ADOLESCENTES POR ALOJAMENTO", bold: true, underline: {} })], spacing: noSpacing })
       );
 
+      // Lista de Quartos
       ['01', '02', '03', '04', '05', '06', '07', '08'].forEach(num => {
           if (dados.alojamentos[num].qtd && dados.alojamentos[num].qtd !== '0') {
              childrenParagraphs.push(new Paragraph({ children: [ new TextRun({ text: `AL-${num}: `, bold: true, size: 18 }), new TextRun({ text: `${dados.alojamentos[num].qtd} - `, size: 18 }), new TextRun({ text: dados.alojamentos[num].nomes || '', italics: true, size: 18 }) ], spacing: noSpacing }));
           }
       });
 
+      // Total, Horário da Vistoria e Responsáveis
       childrenParagraphs.push(
-          new Paragraph({ alignment: AlignmentType.RIGHT, children: [ new TextRun({ text: `TOTAL: ${total}`, bold: true, size: 22 }) ], spacing: { before: 50, after: 50 } })
+          new Paragraph({ alignment: AlignmentType.RIGHT, children: [ new TextRun({ text: `TOTAL DE ADOLESCENTES: ${total}`, bold: true, size: 22 }) ], spacing: { before: 50, after: 0 } }),
+          new Paragraph({ alignment: AlignmentType.RIGHT, children: [ new TextRun({ text: `Horário da Vistoria: ${dados.horarioVistoria || 'Não informado'}`, bold: true, size: 16 }) ], spacing: noSpacing }),
+          new Paragraph({ alignment: AlignmentType.RIGHT, children: [ new TextRun({ text: `Vistoriado por: ${formatarSmartList(dados.responsaveisVistoria)}`, italics: true, size: 16 }) ], spacing: { after: 50 } })
       );
 
+      // Resumo Geral
       childrenParagraphs.push(
             new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "RESUMO DO PLANTÃO", bold: true, underline: {} })], keepNext: true, spacing: noSpacing })
       );
@@ -80,16 +92,24 @@ export const gerarWord = async (dados: RelatorioData) => {
           childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: "Sem observações.", size: 18 })] }));
       }
 
+      // OCORRÊNCIAS COM OS DADOS INTELIGENTES INJETADOS
+      if (dados.temVisita) {
+          childrenParagraphs.push(
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "VISITAS (SÁBADO)", bold: true, underline: {}, color: "4F46E5" })], spacing: { before: 200, after: 50 } }),
+              new Paragraph({ children: [new TextRun({ text: `Revista realizada por: ${formatarSmartList(dados.responsaveisVisitas)}`, size: 18 })], bullet: { level: 0 } })
+          );
+      }
+
       if (dados.temSaida) {
           childrenParagraphs.push(
               new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "SAÍDAS EXTERNAS", bold: true, underline: {}, color: "FF0000" })], spacing: { before: 200, after: 50 } })
           );
           if (dados.saidas && dados.saidas.length > 0) {
-              dados.saidas.forEach(s => {
+              dados.saidas.forEach((s: any) => {
                   childrenParagraphs.push(
                       new Paragraph({ 
                           children: [
-                              new TextRun({ text: `Adolescente: ${s.adolescente} | Educador: ${s.educador} | Horário: ${s.horario}`, size: 18 })
+                              new TextRun({ text: `Adolescente: ${s.adolescente} | Educadores: ${formatarSmartList(s.educadores)} | Horário: ${s.horario}`, size: 18 })
                           ], 
                           bullet: { level: 0 }, 
                           spacing: { after: 50 } 
@@ -104,8 +124,8 @@ export const gerarWord = async (dados: RelatorioData) => {
       if (dados.temAdmissao) {
           childrenParagraphs.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "ADMISSÃO DE ADOLESCENTE", bold: true, underline: {}, color: "15803D" })], spacing: { before: 100 } }));
           if(dados.admissoes && dados.admissoes.length > 0) {
-              dados.admissoes.forEach(a => {
-                  childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: `${a.nome} | Rec: ${a.quemRecebeu} | Vist: ${a.quemVistoria} | Orig: ${a.origem} | Hora: ${a.horario}`, size: 18 })], bullet: { level: 0 }, spacing: noSpacing }));
+              dados.admissoes.forEach((a: any) => {
+                  childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: `${a.nome} | Rec: ${a.quemRecebeu} | Vist: ${formatarSmartList(a.vistoriadores)} | Hora: ${a.horario}`, size: 18 })], bullet: { level: 0 }, spacing: noSpacing }));
               });
           } else { childrenParagraphs.push(new Paragraph({ children: [new TextRun("Sim (sem detalhes)")] })); }
       }
@@ -113,12 +133,13 @@ export const gerarWord = async (dados: RelatorioData) => {
       if (dados.temDesligamento) {
           childrenParagraphs.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "DESLIGAMENTO", bold: true, underline: {}, color: "B91C1C" })], spacing: { before: 100 } }));
           if(dados.desligamentos && dados.desligamentos.length > 0) {
-              dados.desligamentos.forEach(d => {
-                  childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: `${d.nome} | Levou: ${d.quemLevou} | Mot: ${d.motorista} | Vist: ${d.quemVistoria} | Hora: ${d.horario}`, size: 18 })], bullet: { level: 0 }, spacing: noSpacing }));
+              dados.desligamentos.forEach((d: any) => {
+                  childrenParagraphs.push(new Paragraph({ children: [new TextRun({ text: `${d.nome} | Levou: ${d.quemLevou} | Mot: ${d.motorista} | Vist: ${formatarSmartList(d.vistoriadores)} | Hora: ${d.horario}`, size: 18 })], bullet: { level: 0 }, spacing: noSpacing }));
               });
           } else { childrenParagraphs.push(new Paragraph({ children: [new TextRun("Sim (sem detalhes)")] })); }
       }
 
+      // ASSINATURAS
       childrenParagraphs.push(
             new Paragraph({ text: "\n", keepNext: true, spacing: noSpacing }), 
             new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "___________________________        ___________________________" })], keepNext: true, spacing: noSpacing }),
@@ -126,6 +147,7 @@ export const gerarWord = async (dados: RelatorioData) => {
             new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Supervisor Diurno                      Supervisor Noturno", size: 14 })], keepNext: true })
       );
 
+      // FOTOS
       if(dados.fotos && dados.fotos.length > 0) {
           childrenParagraphs.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "ANEXOS FOTOGRÁFICOS", bold: true, size: 20 })], pageBreakBefore: true }));
           for(const foto of dados.fotos) {

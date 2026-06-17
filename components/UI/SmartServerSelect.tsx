@@ -4,21 +4,24 @@
 import React, { useMemo } from 'react';
 import { registrarLog } from '@/lib/logger';
 
-interface Props {
-  label: string;
-  campo: string;
-  formData: any;
-  setFormData: React.Dispatch<React.SetStateAction<any>>;
+interface Servidor {
+  nome: string;
+  cargo: string;
 }
 
-export default function SmartServerSelect({ label, campo, formData, setFormData }: Props) {
-  // O sistema "lê" o formulário e extrai os nomes separados por vírgula ou "e", anexando o cargo.
+interface Props {
+  label: string;
+  formData: any;
+  selecionados: Servidor[];
+  onChange: (novaLista: Servidor[]) => void;
+}
+
+export default function SmartServerSelect({ label, formData, selecionados = [], onChange }: Props) {
   const servidoresDisponiveis = useMemo(() => {
-    const lista: { nome: string; cargo: string }[] = [];
+    const lista: Servidor[] = [];
     
     const adicionarServidores = (nomesString: string, cargo: string) => {
       if (!nomesString) return;
-      // Quebra a string por vírgulas, barras ou a palavra " e "
       nomesString.split(/[,/;\n]| e /i).forEach(n => {
         const nomeLimpo = n.trim();
         if (nomeLimpo && nomeLimpo.toLowerCase() !== 'não houve' && nomeLimpo !== '-') {
@@ -36,34 +39,31 @@ export default function SmartServerSelect({ label, campo, formData, setFormData 
     return lista;
   }, [formData.coordenador, formData.supervisor, formData.educadores, formData.portaria, formData.apoio]);
 
-  const selecionados = formData[campo] || [];
-
-  const toggleServidor = (servidor: { nome: string; cargo: string }) => {
-    const jaSelecionado = selecionados.some((s: any) => s.nome === servidor.nome);
+  const toggleServidor = (servidor: Servidor) => {
+    const jaSelecionado = selecionados.some((s) => s.nome === servidor.nome);
     let novaLista;
     
     if (jaSelecionado) {
-      novaLista = selecionados.filter((s: any) => s.nome !== servidor.nome);
+      novaLista = selecionados.filter((s) => s.nome !== servidor.nome);
     } else {
       novaLista = [...selecionados, servidor];
     }
     
-    setFormData((prev: any) => ({ ...prev, [campo]: novaLista }));
+    onChange(novaLista); // <-- Agora ele repassa a alteração de forma inteligente para o formulário mestre
 
-    // Registra silenciosamente na auditoria
     const userName = typeof window !== "undefined" ? localStorage.getItem("usuarioAtual") || "Usuário" : "Usuário";
     registrarLog(userName, 'Seleção de Equipe', `${jaSelecionado ? 'Removeu' : 'Adicionou'} ${servidor.nome} (${servidor.cargo}) no campo: ${label}`);
   };
 
   return (
-    <div className="mt-6 p-5 bg-white/50 backdrop-blur rounded-2xl border border-gray-200 shadow-sm">
+    <div className="w-full bg-white/50 backdrop-blur rounded-2xl border border-gray-200 shadow-sm p-4">
       <label className="block text-sm font-black text-gray-800 mb-3">{label}</label>
       <div className="flex flex-wrap gap-2">
         {servidoresDisponiveis.length === 0 ? (
           <span className="text-xs text-gray-400 font-bold bg-gray-100 px-3 py-1 rounded-lg">A equipe do plantão ainda não foi preenchida.</span>
         ) : (
           servidoresDisponiveis.map((srv, idx) => {
-            const isSelected = selecionados.some((s: any) => s.nome === srv.nome);
+            const isSelected = selecionados.some((s) => s.nome === srv.nome);
             return (
               <button
                 key={idx}

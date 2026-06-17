@@ -12,6 +12,12 @@ if (typeof window !== 'undefined' && pdfMake.vfs === undefined) {
   pdfMake.vfs = pdfFonts.pdfMake ? pdfFonts.pdfMake.vfs : pdfFonts.vfs;
 }
 
+// Função auxiliar para formatar a lista Inteligente nos relatórios em PDF
+const formatarSmartList = (lista: any[]) => {
+  if (!lista || lista.length === 0) return 'Não informado';
+  return lista.map(s => `${s.nome} (${s.cargo})`).join(', ');
+};
+
 // Função auxiliar para criar cabeçalhos de secção bonitos com fundo colorido
 const criarCabecalhoSecao = (titulo: string, corFundo: string = '#1e3a8a') => ({
   table: {
@@ -22,7 +28,7 @@ const criarCabecalhoSecao = (titulo: string, corFundo: string = '#1e3a8a') => ({
   margin: [0, 15, 0, 10]
 });
 
-export const gerarPDF = async (dados: RelatorioData) => {
+export const gerarPDF = async (dados: RelatorioData | any) => {
   const total = calcularTotalAdolescentes(dados);
 
   try {
@@ -108,9 +114,9 @@ export const gerarPDF = async (dados: RelatorioData) => {
             ],
             // AQUI FOI FEITA A TROCA ENTRE CHAVES DE ALGEMAS E RÁDIO CELULAR
             ['Tonfas', { text: dados.tonfas || '0', alignment: 'center' }, 'Celular + Carregador', { text: dados.celular || '0', alignment: 'center' }],
-            ['Algemas', { text: dados.algemas || '0', alignment: 'center' }, 'Chaves Algemas', { text: dados.chavesAlgemas || '0', alignment: 'center' }],
+            ['Algemas', { text: dados.algemas || '0', alignment: 'center' }, 'Rádio Celular', { text: dados.radioCelular || '0', alignment: 'center' }], // INVERTIDO AQUI
             ['Chaves Acesso', { text: dados.chavesAcesso || '0', alignment: 'center' }, 'Rádio HT', { text: dados.radioHT || '0', alignment: 'center' }],
-            ['Rádio Celular', { text: dados.radioCelular || '0', alignment: 'center' }, 'Cadeados', { text: dados.cadeados || '0', alignment: 'center' }],
+            ['Chaves Algemas', { text: dados.chavesAlgemas || '0', alignment: 'center' }, 'Cadeados', { text: dados.cadeados || '0', alignment: 'center' }], // INVERTIDO AQUI
             ['Escudos', { text: dados.escudos || '0', alignment: 'center' }, 'Pendrives', { text: dados.pendrives || '0', alignment: 'center' }],
             ['Lanternas', { text: dados.lanternas || '0', alignment: 'center' }, '', ''],
           ]
@@ -143,9 +149,23 @@ export const gerarPDF = async (dados: RelatorioData) => {
         ],
         fontSize: 10
       },
-      { 
-        text: `TOTAL DE ADOLESCENTES NO PLANTÃO: ${total}`, 
-        bold: true, alignment: 'right', fontSize: 11, margin: [0, 15, 0, 10], color: '#0f766e' 
+      // Bloco da Inteligência da Vistoria dos Alojamentos
+      {
+        table: {
+          widths: ['*'],
+          body: [
+            [{
+              text: [
+                { text: `TOTAL DE ADOLESCENTES NO PLANTÃO: ${total}\n\n`, bold: true, fontSize: 11, color: '#0f766e' },
+                { text: `Horário da Vistoria: `, bold: true, color: '#0f766e' }, `${dados.horarioVistoria || 'Não informado'}\n`,
+                { text: `Vistoriado por: `, bold: true, color: '#0f766e' }, `${formatarSmartList(dados.responsaveisVistoria)}`
+              ]
+            }]
+          ]
+        },
+        layout: 'noBorders',
+        margin: [0, 15, 0, 10],
+        alignment: 'right'
       }
     );
 
@@ -159,12 +179,21 @@ export const gerarPDF = async (dados: RelatorioData) => {
       contentArray.push({ text: "Nenhuma observação registada para este plantão.", fontSize: 10, alignment: 'center', italics: true, color: '#64748b' });
     }
 
-    // 5. OCORRÊNCIAS
-    const temOcorrencia = dados.temSaida || dados.temAdmissao || dados.temDesligamento;
+    // 5. OCORRÊNCIAS E VISITAS
+    const temOcorrencia = dados.temVisita || dados.temSaida || dados.temAdmissao || dados.temDesligamento;
     if (temOcorrencia) {
         contentArray.push(criarCabecalhoSecao('🚨 OCORRÊNCIAS REGISTRADAS', '#b91c1c'));
 
-        // AQUI FOI CORRIGIDA A LEITURA DAS MÚLTIPLAS SAÍDAS EXTERNAS
+        if (dados.temVisita) {
+          contentArray.push({ text: '▶ VISITAS DE FAMILIARES (SÁBADO)', bold: true, color: '#4f46e5', margin: [0, 5, 0, 2], fontSize: 11 });
+          contentArray.push({ 
+              text: [
+                  { text: `Revista realizada por: `, bold: true },
+                  { text: `${formatarSmartList(dados.responsaveisVisitas)}`, fontSize: 10, color: '#334155' }
+              ], margin: [10, 0, 0, 8] 
+          });
+        }
+
         if (dados.temSaida && dados.saidas && dados.saidas.length > 0) {
           contentArray.push({ text: '▶ SAÍDAS EXTERNAS', bold: true, color: '#b91c1c', margin: [0, 5, 0, 2], fontSize: 11 });
           dados.saidas.forEach((s: any) => {
@@ -174,7 +203,7 @@ export const gerarPDF = async (dados: RelatorioData) => {
                           widths: ['*', '*', '*'],
                           body: [[
                               { text: [{ text: 'Adolescente: ', bold: true }, s.adolescente], fontSize: 10 },
-                              { text: [{ text: 'Educador: ', bold: true }, s.educador], fontSize: 10 },
+                              { text: [{ text: 'Educador(es): ', bold: true }, formatarSmartList(s.educadores)], fontSize: 10 },
                               { text: [{ text: 'Horário: ', bold: true }, s.horario], fontSize: 10 }
                           ]]
                       },
@@ -187,11 +216,11 @@ export const gerarPDF = async (dados: RelatorioData) => {
 
         if (dados.temAdmissao && dados.admissoes && dados.admissoes.length > 0) {
             contentArray.push({ text: '▶ ADMISSÕES', bold: true, color: '#15803d', margin: [0, 5, 0, 2], fontSize: 11 });
-            dados.admissoes.forEach(a => {
+            dados.admissoes.forEach((a: any) => {
                 contentArray.push({ 
                     text: [
                         { text: `• Adolescente: ${a.nome}\n`, bold: true },
-                        { text: `  Recebido por: ${a.quemRecebeu} | Vistoriado por: ${a.quemVistoria} | Origem: ${a.origem} | Horário: ${a.horario}`, fontSize: 9, color: '#334155' }
+                        { text: `  Recebido por: ${a.quemRecebeu} | Vistoriado por: ${formatarSmartList(a.vistoriadores)} | Horário: ${a.horario}`, fontSize: 9, color: '#334155' }
                     ], margin: [10, 0, 0, 8] 
                 });
             });
@@ -199,11 +228,11 @@ export const gerarPDF = async (dados: RelatorioData) => {
 
         if (dados.temDesligamento && dados.desligamentos && dados.desligamentos.length > 0) {
             contentArray.push({ text: '▶ DESLIGAMENTOS', bold: true, color: '#b91c1c', margin: [0, 5, 0, 2], fontSize: 11 });
-            dados.desligamentos.forEach(d => {
+            dados.desligamentos.forEach((d: any) => {
                 contentArray.push({ 
                     text: [
                         { text: `• Adolescente: ${d.nome}\n`, bold: true },
-                        { text: `  Levado por: ${d.quemLevou} | Motorista: ${d.motorista} | Vistoriado por: ${d.quemVistoria} | Horário: ${d.horario}`, fontSize: 9, color: '#334155' }
+                        { text: `  Levado por: ${d.quemLevou} | Motorista: ${d.motorista} | Vistoriado por: ${formatarSmartList(d.vistoriadores)} | Horário: ${d.horario}`, fontSize: 9, color: '#334155' }
                     ], margin: [10, 0, 0, 8] 
                 });
             });
